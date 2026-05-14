@@ -1,0 +1,30 @@
+### Windows
+Thumbs.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+### Node
+node_modules/
+*.log
+npm-debug.log*
+
+### Env
+.env
+.env.local
+.env.*.local
+
+### Build outputs
+dist/
+dist-electron/
+.next/
+out/
+*.tsbuildinfo
+
+### Editor
+.vscode/
+.idea/
+*.swp
+
+### OS
+.DS_Store

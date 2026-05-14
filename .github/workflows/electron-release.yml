@@ -1,0 +1,29 @@
+name: Electron — release Windows installer
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck -w @vibes/electron-app
+      - run: npm run build -w @vibes/electron-app
+      - run: npm run dist -w @vibes/electron-app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer
+          path: electron-app/dist/*.exe

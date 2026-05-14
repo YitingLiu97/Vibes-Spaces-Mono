@@ -1,0 +1,21 @@
+appId: app.gotvibes.spaces
+productName: Vibes Spaces
+directories:
+  output: dist
+files:
+  - dist-electron/**/*
+  - node_modules/**/*
+  - package.json
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-Setup-${version}.${ext}
+publish:
+  provider: github
+  owner: your-github-org
+  repo: vibes-spaces
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true

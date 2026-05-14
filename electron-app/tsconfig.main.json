@@ -1,0 +1,18 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "isolatedModules": false,
+    "jsx": "preserve",
+    "paths": {
+      "@vibes/shared": ["../shared/src/index.ts"],
+      "@vibes/shared/*": ["../shared/src/*"]
+    }
+  },
+  "include": ["src/main/**/*", "../shared/src/**/*"]
+}

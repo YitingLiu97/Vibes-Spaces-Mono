@@ -1,0 +1,23 @@
+{
+  "name": "vibes-spaces",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "shared",
+    "web",
+    "electron-app"
+  ],
+  "scripts": {
+    "test": "npm run test -w @vibes/shared",
+    "dev:web": "npm run dev -w @vibes/web",
+    "dev:electron": "npm run dev -w @vibes/electron-app",
+    "build:web": "npm run build -w @vibes/web",
+    "build:electron": "npm run dist -w @vibes/electron-app",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  }
+}

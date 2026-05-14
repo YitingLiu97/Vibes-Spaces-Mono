@@ -1,0 +1,277 @@
+import { createClient } from '@supabase/supabase-js';
+import { resolve } from '@vibes/shared/resolver';
+import type {
+  Scene,
+  Playlist,
+  ScheduleEntry,
+  OrgSettings,
+  Overlay,
+  OverlayAnimation,
+  OverlayType,
+} from '@vibes/shared/types';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, ORG_ID, CLIENT_VERSION } from './env';
+
+interface Snapshot {
+  scenes: Map<string, Scene>;
+  playlists: Map<string, Playlist>;
+  entries: ScheduleEntry[];
+  settings: OrgSettings;
+  overlays: Map<string, Overlay>;
+  fetchedAt: Date;
+}
+
+export interface PlaybackState {
+  scene: Scene;
+  attributionVisible: boolean;
+  shouldLoop: boolean;
+}
+
+export interface LiveOverlayState {
+  overlay: Overlay;
+  startedAt: Date;
+}
+
+export class Scheduler {
+  private supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    auth: { persistSession: false },
+  });
+  private snapshot: Snapshot | null = null;
+  private currentEntryId: string | null = null;
+  private currentOverlayKey: string | null = null;
+  private playlistIndex = 0;
+  private lastPlayedSceneId: string | null = null;
+  private tickInterval: number | null = null;
+  private pollInterval: number | null = null;
+  private heartbeatInterval: number | null = null;
+
+  constructor(
+    private onPlay: (state: PlaybackState) => void,
+    private onOverlay: (state: LiveOverlayState | null) => void,
+  ) {}
+
+  async start() {
+    void window.log.info('scheduler_starting', { version: CLIENT_VERSION });
+    try {
+      const snap = await this.fetchSnapshot();
+      this.snapshot = snap;
+      await window.cache.prefetchAll(Array.from(snap.scenes.values()));
+      void window.log.info('prefetch_complete', { count: snap.scenes.size });
+    } catch (e) {
+      void window.log.error('startup_fetch_failed', { error: String(e) });
+    }
+    this.tickInterval = window.setInterval(() => this.tick(), 1000);
+    this.pollInterval = window.setInterval(() => void this.poll(), 30_000);
+    this.heartbeatInterval = window.setInterval(() => void this.heartbeat(), 15_000);
+  }
+
+  stop() {
+    if (this.tickInterval) clearInterval(this.tickInterval);
+    if (this.pollInterval) clearInterval(this.pollInterval);
+    if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
+  }
+
+  private async fetchSnapshot(): Promise<Snapshot> {
+    const [scenesRes, plRes, entriesRes, settingsRes, overlaysRes] = await Promise.all([
+      this.supabase.from('scenes').select('*').eq('org_id', ORG_ID),
+      this.supabase
+        .from('playlists')
+        .select('*, playlist_scenes(scene_id, position)')
+        .eq('org_id', ORG_ID),
+      this.supabase.from('schedule_entries').select('*').eq('org_id', ORG_ID),
+      this.supabase.from('org_settings').select('*').eq('org_id', ORG_ID).maybeSingle(),
+      this.supabase.from('overlays').select('*').eq('org_id', ORG_ID),
+    ]);
+
+    const scenes = new Map<string, Scene>(
+      (scenesRes.data ?? []).map((s) => [
+        s.id as string,
+        {
+          id: s.id,
+          name: s.name,
+          videoUrl: s.video_url,
+          hideAttribution: s.hide_attribution,
+          loopEnabled: s.loop_enabled ?? true,
+          composition: s.composition ?? null,
+        },
+      ]),
+    );
+
+    const playlists = new Map<string, Playlist>(
+      (plRes.data ?? []).map((p) => {
+        const links = (p.playlist_scenes ?? []) as { scene_id: string; position: number }[];
+        return [
+          p.id as string,
+          {
+            id: p.id,
+            name: p.name,
+            sceneIdsInOrder: links.sort((a, b) => a.position - b.position).map((l) => l.scene_id),
+          },
+        ];
+      }),
+    );
+
+    const entries: ScheduleEntry[] = (entriesRes.data ?? []).map((e) => ({
+      id: e.id,
+      sceneId: e.scene_id,
+      playlistId: e.playlist_id,
+      startTime: e.start_time,
+      endTime: e.end_time,
+      weekdayMask: e.weekday_mask,
+      overrideDate: e.override_date,
+    }));
+
+    const sd = settingsRes.data;
+    const settings: OrgSettings = sd
+      ? {
+          orgId: sd.org_id,
+          defaultSceneId: sd.default_scene_id,
+          attributionEnabled: sd.attribution_enabled,
+          forcePlaySceneId: sd.force_play_scene_id,
+          liveOverlayId: sd.live_overlay_id ?? null,
+          liveOverlayStartedAt: sd.live_overlay_started_at ?? null,
+        }
+      : {
+          orgId: ORG_ID,
+          defaultSceneId: null,
+          attributionEnabled: true,
+          forcePlaySceneId: null,
+          liveOverlayId: null,
+          liveOverlayStartedAt: null,
+        };
+
+    const overlays = new Map<string, Overlay>(
+      (overlaysRes.data ?? []).map((row) => [
+        row.id as string,
+        {
+          id: row.id,
+          orgId: row.org_id,
+          name: row.name,
+          type: row.type as OverlayType,
+          content: row.content,
+          animation: row.animation as OverlayAnimation,
+          durationMs: row.duration_ms,
+        },
+      ]),
+    );
+
+    return { scenes, playlists, entries, settings, overlays, fetchedAt: new Date() };
+  }
+
+  private async poll() {
+    try {
+      const snap = await this.fetchSnapshot();
+      this.snapshot = snap;
+      void window.cache.prefetchAll(Array.from(snap.scenes.values()));
+    } catch (e) {
+      void window.log.error('poll_failed', { error: String(e) });
+    }
+  }
+
+  private tick() {
+    const snap = this.snapshot;
+    if (!snap) return;
+
+    const slot = resolve(new Date(), snap.settings, snap.entries);
+
+    if (slot.sourceEntryId !== this.currentEntryId) {
+      this.currentEntryId = slot.sourceEntryId;
+      this.playlistIndex = 0;
+      void window.log.info('slot_changed', {
+        source: slot.sourceEntryId,
+        sceneId: slot.sceneId,
+        playlistId: slot.playlistId,
+      });
+    }
+
+    let sceneId = slot.sceneId;
+    const isPlaylistSlot = !!slot.playlistId;
+    if (isPlaylistSlot) {
+      const pl = snap.playlists.get(slot.playlistId!);
+      if (pl && pl.sceneIdsInOrder.length > 0) {
+        sceneId = pl.sceneIdsInOrder[this.playlistIndex % pl.sceneIdsInOrder.length];
+      }
+    }
+
+    if (sceneId) {
+      const scene = snap.scenes.get(sceneId);
+      if (scene) {
+        void window.cache.isCached(scene.id).then((cached) => {
+          if (!cached) return;
+          this.lastPlayedSceneId = scene.id;
+          const attributionVisible = snap.settings.attributionEnabled && !scene.hideAttribution;
+          // Loop only when we're on a single-scene slot — playlists must let `onEnded`
+          // fire so the renderer can advance to the next scene.
+          const shouldLoop = scene.loopEnabled && !isPlaylistSlot;
+          this.onPlay({ scene, attributionVisible, shouldLoop });
+        });
+      }
+    }
+
+    this.reconcileOverlay(snap);
+  }
+
+  private reconcileOverlay(snap: Snapshot) {
+    const { liveOverlayId, liveOverlayStartedAt } = snap.settings;
+    if (!liveOverlayId || !liveOverlayStartedAt) {
+      if (this.currentOverlayKey !== null) {
+        this.currentOverlayKey = null;
+        this.onOverlay(null);
+      }
+      return;
+    }
+
+    const overlay = snap.overlays.get(liveOverlayId);
+    if (!overlay) {
+      if (this.currentOverlayKey !== null) {
+        this.currentOverlayKey = null;
+        this.onOverlay(null);
+      }
+      return;
+    }
+
+    const startedAt = new Date(liveOverlayStartedAt);
+    const elapsed = Date.now() - startedAt.getTime();
+    // Hold for the overlay's duration; exit animation runs out the back end.
+    if (elapsed > overlay.durationMs) {
+      if (this.currentOverlayKey !== null) {
+        this.currentOverlayKey = null;
+        this.onOverlay(null);
+      }
+      return;
+    }
+
+    const key = `${liveOverlayId}@${liveOverlayStartedAt}`;
+    if (key !== this.currentOverlayKey) {
+      this.currentOverlayKey = key;
+      void window.log.info('overlay_triggered', {
+        overlayId: liveOverlayId,
+        name: overlay.name,
+        type: overlay.type,
+      });
+      this.onOverlay({ overlay, startedAt });
+    }
+  }
+
+  onVideoEnded() {
+    this.playlistIndex++;
+    this.tick();
+  }
+
+  private async heartbeat() {
+    const snap = this.snapshot;
+    if (!snap) return;
+    const scene = this.lastPlayedSceneId ? snap.scenes.get(this.lastPlayedSceneId) : null;
+    try {
+      await this.supabase.from('client_status').upsert({
+        org_id: ORG_ID,
+        client_version: CLIENT_VERSION,
+        current_scene_id: scene?.id ?? null,
+        current_scene_name: scene?.name ?? null,
+        current_source_entry_id: this.currentEntryId,
+        last_heartbeat_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      void window.log.error('heartbeat_failed', { error: String(e) });
+    }
+  }
+}

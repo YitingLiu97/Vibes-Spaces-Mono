@@ -1,0 +1,33 @@
+name: Web — typecheck + build
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'web/**'
+      - 'shared/**'
+      - 'package.json'
+      - 'tsconfig.base.json'
+      - '.github/workflows/web-deploy.yml'
+  pull_request:
+    paths:
+      - 'web/**'
+      - 'shared/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck -w @vibes/web
+      - run: npm run build -w @vibes/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_ORG_ID: ${{ secrets.NEXT_PUBLIC_ORG_ID }}

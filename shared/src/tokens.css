@@ -1,0 +1,110 @@
+:root {
+  /* Backgrounds */
+  --color-bg-base: #141418;
+  --color-bg-elevated: #1c1c22;
+  --color-bg-overlay: rgba(240, 234, 245, 0.04);
+  --color-bg-pressed: rgba(240, 234, 245, 0.08);
+
+  /* Foregrounds */
+  --color-fg-primary: #F0EAF5;
+  --color-fg-secondary: #a8a0b3;
+  --color-fg-tertiary: #6e6878;
+  --color-fg-on-accent: #141418;
+
+  /* Brand accent — Vibes purple */
+  --color-accent: #C07FD4;
+  --color-accent-soft: rgba(192, 127, 212, 0.16);
+  --color-accent-hover: #D4A0E8;
+
+  /* Semantic */
+  --color-success: #88d49a;
+  --color-success-soft: rgba(136, 212, 154, 0.14);
+  --color-warning: #f5b942;
+  --color-warning-soft: rgba(245, 185, 66, 0.14);
+  --color-danger: #e26b6b;
+  --color-danger-soft: rgba(226, 107, 107, 0.14);
+
+  /* Borders */
+  --color-border-subtle: rgba(240, 234, 245, 0.08);
+  --color-border-default: rgba(240, 234, 245, 0.14);
+  --color-border-strong: rgba(240, 234, 245, 0.24);
+  --color-border-focus: var(--color-accent);
+
+  /* Type stack — Vibes brand */
+  --font-display: 'Bebas Neue', 'Inter', system-ui, sans-serif;
+  --font-serif: 'DM Serif Display', 'Cormorant Garamond', serif;
+  --font-body: 'Space Mono', 'JetBrains Mono', monospace;
+  --font-mono: 'Space Mono', 'JetBrains Mono', monospace;
+
+  /* Type scale */
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 22px;
+  --text-2xl: 28px;
+  --text-3xl: 36px;
+  --text-4xl: 48px;
+  --text-5xl: 64px;
+
+  /* Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Line heights */
+  --leading-tight: 1.2;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+
+  /* Spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  /* Radii */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* Motion */
+  --motion-duration-fast: 120ms;
+  --motion-duration-default: 200ms;
+  --motion-duration-slow: 400ms;
+  --motion-duration-scene: 1000ms;
+  --motion-easing-default: cubic-bezier(0.2, 0, 0.2, 1);
+  --motion-easing-emphasize: cubic-bezier(0.3, 0, 0, 1);
+  --motion-easing-enter: cubic-bezier(0, 0, 0.2, 1);
+  --motion-easing-exit: cubic-bezier(0.4, 0, 1, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}

@@ -1,0 +1,80 @@
+/* Live overlay layer — discrete, timed overlay rendered above
+   the composition layer. Triggered from the dashboard's Now tab. */
+
+.live-overlay-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.live-overlay-card {
+  position: absolute;
+  font-family: var(--font-display);
+  color: var(--color-fg-primary);
+  transition: opacity 400ms var(--motion-easing-default),
+              transform 400ms var(--motion-easing-default);
+  inset: 0;
+}
+
+.live-overlay-speaker,
+.live-overlay-text {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 8%;
+  padding: 24px 32px;
+  background: rgba(20, 20, 24, 0.78);
+  border-left: 3px solid var(--color-accent);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+}
+
+.live-overlay-speaker-name {
+  font-size: clamp(28px, 4vw, 56px);
+  font-weight: 600;
+  line-height: 1.1;
+}
+.live-overlay-speaker-role {
+  margin-top: 8px;
+  font-size: clamp(16px, 1.8vw, 24px);
+  color: var(--color-fg-secondary);
+  font-weight: 400;
+}
+
+.live-overlay-text-1 {
+  font-size: clamp(28px, 4vw, 56px);
+  font-weight: 600;
+  line-height: 1.15;
+}
+.live-overlay-text-2 {
+  margin-top: 8px;
+  font-size: clamp(18px, 2vw, 28px);
+  color: var(--color-fg-secondary);
+}
+
+.live-overlay-logo {
+  position: absolute;
+}
+.live-overlay-logo img {
+  max-height: 14vh;
+  max-width: 30vw;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+.live-overlay-pos-top-left { top: 4%; left: 4%; }
+.live-overlay-pos-top-right { top: 4%; right: 4%; }
+.live-overlay-pos-bottom-left { bottom: 4%; left: 4%; }
+.live-overlay-pos-bottom-right { bottom: 4%; right: 4%; }
+.live-overlay-pos-center { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+.anim-fade { opacity: 0; }
+.anim-fade.enter { opacity: 1; }
+.anim-fade.exit { opacity: 0; }
+
+.anim-slide-left { opacity: 0; transform: translateX(-40px); }
+.anim-slide-left.enter { opacity: 1; transform: translateX(0); }
+.anim-slide-left.exit { opacity: 0; transform: translateX(-40px); }
+
+.anim-slide-up { opacity: 0; transform: translateY(40px); }
+.anim-slide-up.enter { opacity: 1; transform: translateY(0); }
+.anim-slide-up.exit { opacity: 0; transform: translateY(40px); }

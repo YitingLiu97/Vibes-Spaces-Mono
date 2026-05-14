@@ -1,0 +1,214 @@
+@import url('../../../shared/src/tokens.css');
+
+.player-root {
+  position: fixed;
+  inset: 0;
+  background: var(--color-bg-base);
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Branding spec §5 — Vibes attribution overlay */
+.vibes-wordmark {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  font-family: var(--font-display);
+  font-size: clamp(14px, 1.5vw, 22px);
+  font-weight: var(--font-weight-regular);
+  color: rgba(240, 237, 232, 0.5);
+  pointer-events: none;
+  user-select: none;
+  transition: opacity var(--motion-duration-scene) var(--motion-easing-default);
+}
+
+/* ── Composition layer (per-scene persistent layers) ───────────────────── */
+
+.composition-tint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+}
+
+.composition-zones {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: grid;
+  grid-template-rows: minmax(0, 22%) 1fr minmax(0, 22%);
+  padding: 4% 5%;
+  pointer-events: none;
+}
+
+.composition-zone {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 0;
+}
+.composition-zone[data-pos='left'] { justify-content: flex-start; }
+.composition-zone[data-pos='center'] { justify-content: center; }
+.composition-zone[data-pos='right'] { justify-content: flex-end; }
+.composition-zone-header { align-items: flex-start; padding-top: 8px; }
+.composition-zone-center { align-items: center; }
+.composition-zone-footer { align-items: flex-end; padding-bottom: 8px; }
+
+.composition-zone img {
+  max-width: 60%;
+  max-height: 100%;
+  object-fit: contain;
+  display: block;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+
+.composition-caption-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: grid;
+  grid-template-rows: 1fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr 1fr;
+  padding: 5% 6%;
+  pointer-events: none;
+}
+
+.composition-caption {
+  grid-row: 3;
+  grid-column: 2;
+  align-self: end;
+  justify-self: center;
+  text-align: center;
+  line-height: 1.1;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.4);
+  word-wrap: break-word;
+  max-width: 100%;
+}
+
+.composition-caption[data-h='left'] { justify-self: start; text-align: left; }
+.composition-caption[data-h='center'] { justify-self: center; text-align: center; }
+.composition-caption[data-h='right'] { justify-self: end; text-align: right; }
+.composition-caption[data-v='top'] { grid-row: 1; align-self: start; }
+.composition-caption[data-v='middle'] { grid-row: 2; align-self: center; }
+.composition-caption[data-v='bottom'] { grid-row: 3; align-self: end; }
+
+.composition-caption.font-bebas {
+  font-family: 'Bebas Neue', sans-serif;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+}
+.composition-caption.font-serif {
+  font-family: 'DM Serif Display', serif;
+  font-style: italic;
+  letter-spacing: 0;
+}
+.composition-caption.font-mono {
+  font-family: 'Space Mono', monospace;
+  letter-spacing: 2px;
+  font-weight: 700;
+}
+
+.composition-frame {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  pointer-events: none;
+}
+
+/* ── Overlay layer ──────────────────────────────────────────────────────── */
+
+.overlay-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.overlay-card {
+  position: absolute;
+  font-family: var(--font-display);
+  color: var(--color-fg-primary);
+  transition: opacity 400ms var(--motion-easing-default),
+              transform 400ms var(--motion-easing-default);
+}
+
+/* Default placement for speaker_card + text — lower third, centered horizontally */
+.overlay-speaker,
+.overlay-text {
+  position: absolute;
+  left: 6%;
+  right: 6%;
+  bottom: 8%;
+  padding: 24px 32px;
+  background: rgba(10, 10, 11, 0.78);
+  border-left: 3px solid var(--color-accent);
+  backdrop-filter: blur(8px);
+  border-radius: 8px;
+}
+
+.overlay-speaker-name {
+  font-size: clamp(28px, 4vw, 56px);
+  font-weight: 600;
+  line-height: 1.1;
+}
+.overlay-speaker-role {
+  margin-top: 8px;
+  font-size: clamp(16px, 1.8vw, 24px);
+  color: var(--color-fg-secondary);
+  font-weight: 400;
+}
+
+.overlay-text-line-1 {
+  font-size: clamp(28px, 4vw, 56px);
+  font-weight: 600;
+  line-height: 1.15;
+}
+.overlay-text-line-2 {
+  margin-top: 8px;
+  font-size: clamp(18px, 2vw, 28px);
+  color: var(--color-fg-secondary);
+}
+
+.overlay-logo {
+  position: absolute;
+}
+.overlay-logo img {
+  max-height: 14vh;
+  max-width: 30vw;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
+}
+.overlay-pos-top-left    { top: 4%; left: 4%; }
+.overlay-pos-top-right   { top: 4%; right: 4%; }
+.overlay-pos-bottom-left { bottom: 4%; left: 4%; }
+.overlay-pos-bottom-right{ bottom: 4%; right: 4%; }
+.overlay-pos-center      { top: 50%; left: 50%; transform: translate(-50%, -50%); }
+.overlay-pos-center img  { filter: drop-shadow(0 8px 24px rgba(0, 0, 0, 0.6)); }
+
+/* ── Animations: enter / exit pairs ─────────────────────────────────────── */
+
+/* Fade */
+.anim-fade { opacity: 0; }
+.anim-fade.enter { opacity: 1; }
+.anim-fade.exit { opacity: 0; }
+
+/* Slide in from left */
+.anim-slide-left { opacity: 0; transform: translateX(-40px); }
+.anim-slide-left.enter { opacity: 1; transform: translateX(0); }
+.anim-slide-left.exit { opacity: 0; transform: translateX(-40px); }
+
+/* Slide up from bottom */
+.anim-slide-up { opacity: 0; transform: translateY(40px); }
+.anim-slide-up.enter { opacity: 1; transform: translateY(0); }
+.anim-slide-up.exit { opacity: 0; transform: translateY(40px); }
+
+/* Centered logo overrides translate handling for slide animations.
+   We use a wrapping transform on the inner element so the position transform stays intact. */
+.overlay-card .overlay-pos-center {
+  /* the position centering is already on .overlay-pos-center */
+}

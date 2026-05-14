@@ -1,0 +1,56 @@
+@import '../../shared/src/tokens.css';
+@import '../components/composition.css';
+@import '../components/liveOverlay.css';
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  background-color: var(--color-bg-base);
+  color: var(--color-fg-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button {
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+.animate-pulse-soft {
+  animation: pulse-soft 2s var(--motion-easing-default) infinite;
+}
+
+.animate-sparkle-pulse {
+  animation: sparkle-pulse 1.5s var(--motion-easing-default) infinite;
+}
+
+@keyframes sparkle-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.7;
+  }
+}
