@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { Play, X } from 'lucide-react';
 import type { Scene, SceneComposition } from '@vibes/shared/types';
 import { EMPTY_COMPOSITION } from '@vibes/shared/types';
 import { getSupabase } from '@/lib/supabase';
@@ -113,22 +113,39 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
     }));
   }
 
-  async function save() {
+  async function save(opts: { thenPlay?: boolean } = {}) {
     if (!scene) return;
     setSaving(true);
     try {
-      const { error } = await getSupabase()
+      const supabase = getSupabase();
+      const { error } = await supabase
         .from('scenes')
         .update({ composition: comp })
         .eq('id', scene.id);
       if (error) throw error;
-      toast({ title: 'Composition saved', description: scene.name });
+
+      if (opts.thenPlay) {
+        // One tap to ship: save the composition AND force-play this scene
+        // so the venue / preview shows the new look immediately. No need to
+        // close the dialog and hunt for the Play now button on the row.
+        const { error: rpcErr } = await supabase.rpc('trigger_force_play', {
+          p_org_id: ORG_ID,
+          p_scene_id: scene.id,
+        });
+        if (rpcErr) throw rpcErr;
+        toast({
+          title: 'Playing now',
+          description: `${scene.name} · with your latest composition`,
+        });
+      } else {
+        toast({ title: 'Composition saved', description: scene.name });
+      }
       onSaved();
       onClose();
     } catch {
       toast({
         variant: 'destructive',
-        title: 'Couldn’t save composition',
+        title: opts.thenPlay ? 'Couldn’t save & play' : 'Couldn’t save composition',
         description: 'Check your connection and try again.',
       });
     } finally {
@@ -169,8 +186,17 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
           <Button variant="ghost" size="sm" onClick={clearAll} disabled={saving}>
             Clear composition
           </Button>
-          <Button variant="primary" size="sm" onClick={save} disabled={saving}>
+          <Button variant="secondary" size="sm" onClick={() => save()} disabled={saving}>
             {saving ? 'Saving…' : 'Save'}
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => save({ thenPlay: true })}
+            disabled={saving}
+          >
+            <Play className="h-4 w-4" strokeWidth={1.5} />
+            {saving ? 'Saving…' : 'Save & Play now'}
           </Button>
           <button onClick={onClose} aria-label="Close" className="text-fg-tertiary hover:text-fg-primary">
             <X className="h-5 w-5" strokeWidth={1.5} />
