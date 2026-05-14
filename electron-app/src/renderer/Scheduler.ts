@@ -241,6 +241,18 @@ export class Scheduler {
       if (this.currentOverlayKey !== null) {
         this.currentOverlayKey = null;
         this.onOverlay(null);
+        // Write null back so the dashboard chip stops showing "Live".
+        // Conditional on the started_at we used to compute expiry — if the
+        // operator re-tapped in the meantime, the DB row has a new
+        // started_at and our clear becomes a no-op (their re-tap wins).
+        void this.supabase
+          .from('org_settings')
+          .update({ live_overlay_id: null, live_overlay_started_at: null })
+          .eq('org_id', ORG_ID)
+          .eq('live_overlay_started_at', liveOverlayStartedAt)
+          .then(({ error }) => {
+            if (error) void window.log.error('overlay_autoclear_failed', { error: String(error) });
+          });
       }
       return;
     }

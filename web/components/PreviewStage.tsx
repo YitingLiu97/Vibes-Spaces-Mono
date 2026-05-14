@@ -295,7 +295,7 @@ export function PreviewStage() {
     setScene((prev) => (prev?.id === nextScene.id ? prev : nextScene));
     setSourceLabel(
       slot.sourceEntryId === 'force_play'
-        ? 'FORCED'
+        ? 'PLAYING'
         : slot.sourceEntryId === 'default'
         ? 'Default'
         : 'Scheduled',
@@ -321,6 +321,13 @@ export function PreviewStage() {
         currentOverlayKeyRef.current = null;
         setOverlay(null);
         setOverlayStartedAt(null);
+        // Mirror Electron's autoclear, conditional on the same started_at we
+        // used to compute expiry — a re-tap in the meantime wins.
+        void getSupabase()
+          .from('org_settings')
+          .update({ live_overlay_id: null, live_overlay_started_at: null })
+          .eq('org_id', ORG_ID)
+          .eq('live_overlay_started_at', liveOverlayStartedAt);
       }
       return;
     }

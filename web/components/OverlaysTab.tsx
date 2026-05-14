@@ -64,12 +64,11 @@ export function OverlaysTab() {
   async function showNow(overlay: Overlay) {
     setLiveOverlayId(overlay.id);
     try {
-      await getSupabase()
-        .from('org_settings')
-        // live_overlay_started_at is filled in server-side by the
-        // org_settings_timestamps trigger when live_overlay_id changes.
-        .update({ live_overlay_id: overlay.id })
-        .eq('org_id', ORG_ID);
+      // RPC sets id + started_at=now() atomically. Re-tap restarts the timer.
+      await getSupabase().rpc('trigger_live_overlay', {
+        p_org_id: ORG_ID,
+        p_overlay_id: overlay.id,
+      });
       toast({
         title: 'Showing now',
         description: `${overlay.name} · ${Math.round(overlay.durationMs / 1000)}s`,

@@ -49,25 +49,24 @@ export function ScenesTab() {
   }, [refresh]);
 
   async function forcePlay(scene: Scene) {
-    if (!confirm(`Force-play “${scene.name}” until you tap Resume?`)) return;
+    if (!confirm(`Play “${scene.name}” now until you resume the schedule?`)) return;
     setForcedSceneId(scene.id);
     try {
-      await getSupabase()
-        .from('org_settings')
-        // force_play_set_at is filled in server-side by the
-        // org_settings_timestamps trigger when force_play_scene_id changes.
-        .update({ force_play_scene_id: scene.id })
-        .eq('org_id', ORG_ID);
+      // RPC sets force_play_scene_id + force_play_set_at=now() atomically.
+      await getSupabase().rpc('trigger_force_play', {
+        p_org_id: ORG_ID,
+        p_scene_id: scene.id,
+      });
       toast({
-        title: 'Now forcing',
+        title: 'Playing now',
         description: scene.name,
-        action: { label: 'Undo', onClick: resume },
+        action: { label: 'Resume schedule', onClick: resume },
       });
     } catch {
       setForcedSceneId(null);
       toast({
         variant: 'destructive',
-        title: 'Couldn’t force-play',
+        title: 'Couldn’t play',
         description: 'Check your connection and try again.',
       });
     }
@@ -158,7 +157,7 @@ export function ScenesTab() {
                   <span className="text-base font-medium text-fg-primary">{scene.name}</span>
                   {forcedSceneId === scene.id && (
                     <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning">
-                      Forced
+                      Playing
                     </span>
                   )}
                 </div>

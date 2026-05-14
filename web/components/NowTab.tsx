@@ -16,12 +16,14 @@ import { NOW_TAB_POLL_MS, ORG_ID } from '@/lib/constants';
 import { Button } from './Button';
 import { HeartbeatDot } from './HeartbeatDot';
 import { useToast } from './Toast';
+import { QuickStart } from './QuickStart';
 
 interface NowState {
   status: ClientStatus | null;
   settings: OrgSettings | null;
   forcedScene: Scene | null;
   overlays: Overlay[];
+  sceneCount: number;
   loading: boolean;
   error: string | null;
 }
@@ -32,9 +34,17 @@ export function NowTab() {
     settings: null,
     forcedScene: null,
     overlays: [],
+    sceneCount: 0,
     loading: true,
     error: null,
   });
+  // 1Hz ticker so overlay-elapsed math re-evaluates between 5s polls and the
+  // "Live" chip drops the moment duration runs out (not 5s later).
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -43,7 +53,7 @@ export function NowTab() {
     async function poll() {
       const supabase = getSupabase();
       try {
-        const [statusRes, settingsRes, overlaysRes] = await Promise.all([
+        const [statusRes, settingsRes, overlaysRes, scenesCountRes] = await Promise.all([
           supabase.from('client_status').select('*').eq('org_id', ORG_ID).maybeSingle(),
           supabase.from('org_settings').select('*').eq('org_id', ORG_ID).maybeSingle(),
           supabase
@@ -51,6 +61,7 @@ export function NowTab() {
             .select('*')
             .eq('org_id', ORG_ID)
             .order('created_at', { ascending: false }),
+          supabase.from('scenes').select('id', { count: 'exact', head: true }).eq('org_id', ORG_ID),
         ]);
         if (!active) return;
 
@@ -105,7 +116,15 @@ export function NowTab() {
           durationMs: row.duration_ms,
         }));
 
-        setState({ status, settings, forcedScene, overlays, loading: false, error: null });
+        setState({
+          status,
+          settings,
+          forcedScene,
+          overlays,
+          sceneCount: scenesCountRes.count ?? 0,
+          loading: false,
+          error: null,
+        });
       } catch (e) {
         if (!active) return;
         setState((prev) => ({
@@ -126,11 +145,12 @@ export function NowTab() {
 
   async function showOverlay(overlay: Overlay) {
     try {
-      await getSupabase()
-        .from('org_settings')
-        // started_at is filled in by the org_settings_timestamps trigger.
-        .update({ live_overlay_id: overlay.id })
-        .eq('org_id', ORG_ID);
+      // RPC sets both live_overlay_id and live_overlay_started_at=now()
+      // atomically, so re-tapping the same overlay restarts its timer.
+      await getSupabase().rpc('trigger_live_overlay', {
+        p_org_id: ORG_ID,
+        p_overlay_id: overlay.id,
+      });
       toast({ title: 'Showing now', description: overlay.name });
     } catch {
       toast({
@@ -172,15 +192,28 @@ export function NowTab() {
   const lastSeen = state.status?.lastHeartbeatAt ?? null;
   const isForced = !!state.settings?.forcePlaySceneId;
   const currentSceneName = isForced
-    ? state.forcedScene?.name ?? 'Forced scene'
+    ? state.forcedScene?.name ?? 'Playing now'
     : state.status?.currentSceneName ?? '—';
   const sourceLabel = isForced
-    ? 'FORCED'
+    ? 'PLAYING'
     : state.status?.currentSourceEntryId === 'default'
     ? 'Default'
     : state.status?.currentSourceEntryId
     ? 'Scheduled'
     : null;
+
+  // Compute "is this overlay actually visible right now" locally so the chip
+  // refreshes the moment its duration runs out, even before any renderer has
+  // had a chance to clear the DB row.
+  const liveOverlayId = state.settings?.liveOverlayId ?? null;
+  const liveOverlayStartedAt = state.settings?.liveOverlayStartedAt ?? null;
+  const liveOverlay = liveOverlayId ? state.overlays.find((o) => o.id === liveOverlayId) : null;
+  const isOverlayActiveNow =
+    !!liveOverlay &&
+    !!liveOverlayStartedAt &&
+    Date.now() - new Date(liveOverlayStartedAt).getTime() < liveOverlay.durationMs;
+
+  const isFirstRun = !state.loading && state.sceneCount === 0;
 
   return (
     <div className="flex flex-col gap-6">
@@ -201,6 +234,8 @@ export function NowTab() {
           {state.error}
         </div>
       )}
+
+      {isFirstRun && <QuickStart hasOverlays={state.overlays.length > 0} />}
 
       <div className="flex flex-col gap-3">
         <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-tertiary">
@@ -226,11 +261,9 @@ export function NowTab() {
           className="flex flex-col gap-3 rounded-lg border border-warning/30 p-5"
           style={{ background: 'var(--color-warning-soft)' }}
         >
-          <div className="text-sm font-medium text-fg-primary">
-            Force-play is active.
-          </div>
+          <div className="text-sm font-medium text-fg-primary">Playing manually.</div>
           <div className="text-sm text-fg-secondary">
-            {state.forcedScene?.name ?? 'A scene'} is overriding the schedule until you resume.
+            {state.forcedScene?.name ?? 'A scene'} will keep playing until you resume the schedule.
           </div>
           <Button variant="primary" fullWidth onClick={resume}>
             <RotateCcw className="h-4 w-4" strokeWidth={1.5} />
@@ -244,7 +277,7 @@ export function NowTab() {
           <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-tertiary">
             Live overlays
           </span>
-          {state.settings?.liveOverlayId && (
+          {isOverlayActiveNow && (
             <button
               onClick={clearOverlay}
               className="inline-flex items-center gap-1 text-xs text-fg-secondary hover:text-fg-primary"
@@ -265,7 +298,7 @@ export function NowTab() {
         ) : (
           <div className="flex flex-wrap gap-2">
             {state.overlays.map((o) => {
-              const isLive = state.settings?.liveOverlayId === o.id;
+              const isLive = isOverlayActiveNow && liveOverlayId === o.id;
               return (
                 <button
                   key={o.id}
