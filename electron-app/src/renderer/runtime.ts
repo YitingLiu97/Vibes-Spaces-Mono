@@ -10,8 +10,15 @@ import type { Scene } from '@vibes/shared/types';
 // browser-safe equivalents. Call install() once at app boot, before anything
 // touches window.log or window.cache.
 
+// Capture context AT MODULE LOAD, before installBrowserShimsIfNeeded runs.
+// Otherwise the shim itself defines window.cache and `isElectron()` would
+// return true in the browser too, sending the <video> at vibes-scene://
+// URLs that don't resolve outside Electron.
+const _isElectron =
+  typeof window !== 'undefined' && typeof window.cache !== 'undefined';
+
 export function isElectron(): boolean {
-  return typeof window !== 'undefined' && typeof window.cache !== 'undefined';
+  return _isElectron;
 }
 
 export function installBrowserShimsIfNeeded() {
