@@ -278,7 +278,14 @@ function ZoneControls({
       <label className="relative flex min-h-[70px] cursor-pointer items-center justify-center border border-dashed border-border bg-bg-base p-3 text-center text-[10px] uppercase tracking-wider text-fg-tertiary hover:border-accent hover:text-fg-primary">
         {imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={imageUrl} alt="" className="max-h-[60px] max-w-full" />
+          <img
+            src={imageUrl}
+            alt=""
+            className="max-h-[60px] max-w-full"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
         ) : (
           'Click to upload'
         )}

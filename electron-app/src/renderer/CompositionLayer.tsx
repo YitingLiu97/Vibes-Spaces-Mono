@@ -49,7 +49,17 @@ function Zone({
   if (!zone.imageUrl) return <div className={`composition-zone composition-zone-${name}`} />;
   return (
     <div className={`composition-zone composition-zone-${name}`} data-pos={zone.position}>
-      <img src={zone.imageUrl} alt="" />
+      <img
+        src={zone.imageUrl}
+        alt=""
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = 'none';
+          void window.log?.error('composition_image_failed', {
+            url: zone.imageUrl,
+            zone: name,
+          });
+        }}
+      />
     </div>
   );
 }

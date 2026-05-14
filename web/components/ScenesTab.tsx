@@ -54,10 +54,9 @@ export function ScenesTab() {
     try {
       await getSupabase()
         .from('org_settings')
-        .update({
-          force_play_scene_id: scene.id,
-          force_play_set_at: new Date().toISOString(),
-        })
+        // force_play_set_at is filled in server-side by the
+        // org_settings_timestamps trigger when force_play_scene_id changes.
+        .update({ force_play_scene_id: scene.id })
         .eq('org_id', ORG_ID);
       toast({
         title: 'Now forcing',

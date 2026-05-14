@@ -92,7 +92,13 @@ function Contents({ overlay }: { overlay: Overlay }) {
     return (
       <div className={`live-overlay-logo live-overlay-pos-${c.position}`}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={c.url} alt="" />
+        <img
+          src={c.url}
+          alt=""
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+          }}
+        />
       </div>
     );
   }

@@ -56,7 +56,13 @@ function Zone({
   return (
     <div className={`composition-zone composition-zone-${name}`} data-pos={zone.position}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={zone.imageUrl} alt="" />
+      <img
+        src={zone.imageUrl}
+        alt=""
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = 'none';
+        }}
+      />
     </div>
   );
 }

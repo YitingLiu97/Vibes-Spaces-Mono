@@ -94,7 +94,14 @@ function OverlayContents({ overlay }: { overlay: Overlay }) {
     const c = overlay.content as ImageLogoContent;
     return (
       <div className={`overlay-logo overlay-pos-${c.position}`}>
-        <img src={c.url} alt="" />
+        <img
+          src={c.url}
+          alt=""
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).style.display = 'none';
+            void window.log?.error('overlay_image_failed', { url: c.url });
+          }}
+        />
       </div>
     );
   }

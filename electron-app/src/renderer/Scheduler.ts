@@ -77,7 +77,12 @@ export class Scheduler {
         .from('playlists')
         .select('*, playlist_scenes(scene_id, position)')
         .eq('org_id', ORG_ID),
-      this.supabase.from('schedule_entries').select('*').eq('org_id', ORG_ID),
+      // Newer entries win when two overlap at the same time.
+      this.supabase
+        .from('schedule_entries')
+        .select('*')
+        .eq('org_id', ORG_ID)
+        .order('created_at', { ascending: false }),
       this.supabase.from('org_settings').select('*').eq('org_id', ORG_ID).maybeSingle(),
       this.supabase.from('overlays').select('*').eq('org_id', ORG_ID),
     ]);

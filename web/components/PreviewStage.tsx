@@ -55,7 +55,13 @@ export function PreviewStage() {
     const [scenesRes, plRes, entriesRes, settingsRes, overlaysRes] = await Promise.all([
       supabase.from('scenes').select('*').eq('org_id', ORG_ID),
       supabase.from('playlists').select('*, playlist_scenes(scene_id, position)').eq('org_id', ORG_ID),
-      supabase.from('schedule_entries').select('*').eq('org_id', ORG_ID),
+      // Newer entries win when two overlap at the same time — the resolver's
+      // entries.find() picks the first match, so created_at DESC = newest wins.
+      supabase
+        .from('schedule_entries')
+        .select('*')
+        .eq('org_id', ORG_ID)
+        .order('created_at', { ascending: false }),
       supabase.from('org_settings').select('*').eq('org_id', ORG_ID).maybeSingle(),
       supabase.from('overlays').select('*').eq('org_id', ORG_ID),
     ]);

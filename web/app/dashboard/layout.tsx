@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { clsx } from 'clsx';
 import { ToastProvider } from '@/components/Toast';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const TABS = [
   { href: '/dashboard', label: 'Now' },
@@ -49,7 +50,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             })}
           </nav>
         </header>
-        <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-6">{children}</main>
+        <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-6">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
       </div>
     </ToastProvider>
   );

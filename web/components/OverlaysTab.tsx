@@ -66,10 +66,9 @@ export function OverlaysTab() {
     try {
       await getSupabase()
         .from('org_settings')
-        .update({
-          live_overlay_id: overlay.id,
-          live_overlay_started_at: new Date().toISOString(),
-        })
+        // live_overlay_started_at is filled in server-side by the
+        // org_settings_timestamps trigger when live_overlay_id changes.
+        .update({ live_overlay_id: overlay.id })
         .eq('org_id', ORG_ID);
       toast({
         title: 'Showing now',
