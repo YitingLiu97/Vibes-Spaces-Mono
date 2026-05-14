@@ -17,8 +17,6 @@ import { CompositionLayer } from './CompositionLayer';
 import { LiveOverlayLayer } from './LiveOverlayLayer';
 
 const POLL_MS = 5_000;
-const LOOP_CROSSFADE_MS = 300;
-const SCENE_CROSSFADE_MS = 1000;
 
 interface Snapshot {
   scenes: Map<string, Scene>;
@@ -28,8 +26,13 @@ interface Snapshot {
   overlays: Map<string, Overlay>;
 }
 
+// The preview is an operator-awareness tool, not the venue display, so it
+// uses a single <video> with native loop. Yes, this has the Chromium "loop
+// blink" — but for the preview, simplicity + reliability beat seamless looping.
+// The Electron client keeps the double-buffered seamless loop where it matters.
 export function PreviewStage() {
   const [scene, setScene] = useState<Scene | null>(null);
+  const [shouldLoop, setShouldLoop] = useState(true);
   const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [overlayStartedAt, setOverlayStartedAt] = useState<Date | null>(null);
   const [sourceLabel, setSourceLabel] = useState<string | null>(null);
@@ -40,23 +43,11 @@ export function PreviewStage() {
   const currentEntryIdRef = useRef<string | null>(null);
   const currentOverlayKeyRef = useRef<string | null>(null);
 
-  // Two raw <video> DOM elements managed imperatively. Active is the one
-  // currently visible; buffer is preloaded at currentTime=0 with the same src
-  // for seamless looping.
-  const videoARef = useRef<HTMLVideoElement>(null);
-  const videoBRef = useRef<HTMLVideoElement>(null);
-  const activeIsARef = useRef(true);
-  const shouldLoopRef = useRef(true);
-  const isPlaylistSlotRef = useRef(false);
-  const currentSceneIdRef = useRef<string | null>(null);
-
   async function fetchSnapshot(): Promise<Snapshot> {
     const supabase = getSupabase();
     const [scenesRes, plRes, entriesRes, settingsRes, overlaysRes] = await Promise.all([
       supabase.from('scenes').select('*').eq('org_id', ORG_ID),
       supabase.from('playlists').select('*, playlist_scenes(scene_id, position)').eq('org_id', ORG_ID),
-      // Newer entries win when two overlap at the same time — the resolver's
-      // entries.find() picks the first match, so created_at DESC = newest wins.
       supabase
         .from('schedule_entries')
         .select('*')
@@ -136,135 +127,6 @@ export function PreviewStage() {
     return { scenes, playlists, entries, settings, overlays };
   }
 
-  // ── Imperative video orchestration ─────────────────────────────────────
-
-  function activeVideo() {
-    return activeIsARef.current ? videoARef.current : videoBRef.current;
-  }
-  function bufferVideo() {
-    return activeIsARef.current ? videoBRef.current : videoARef.current;
-  }
-
-  function loadSceneOnVideo(v: HTMLVideoElement, url: string, autoplay: boolean) {
-    v.src = url;
-    v.muted = true;
-    v.playsInline = true;
-    v.loop = false;
-    v.load();
-    if (autoplay) {
-      v.play().catch(() => {});
-    }
-  }
-
-  function primeBuffer(url: string) {
-    const buf = bufferVideo();
-    if (!buf) return;
-    if (buf.src && buf.src.endsWith(url.split('/').pop() ?? '')) return;
-    loadSceneOnVideo(buf, url, false);
-    const onCanPlay = () => {
-      buf.removeEventListener('canplay', onCanPlay);
-      buf.pause();
-      buf.currentTime = 0;
-    };
-    buf.addEventListener('canplay', onCanPlay);
-  }
-
-  function fade(durationMs: number, onSettled?: () => void) {
-    const start = performance.now();
-    const wasActiveA = activeIsARef.current;
-    const a = videoARef.current!;
-    const b = videoBRef.current!;
-    const step = (t: number) => {
-      const k = Math.min(1, (t - start) / durationMs);
-      const out = wasActiveA ? a : b;
-      const ins = wasActiveA ? b : a;
-      out.style.opacity = String(1 - k);
-      ins.style.opacity = String(k);
-      if (k < 1) {
-        requestAnimationFrame(step);
-      } else {
-        const formerlyActive = wasActiveA ? a : b;
-        formerlyActive.pause();
-        formerlyActive.currentTime = 0;
-        activeIsARef.current = !wasActiveA;
-        onSettled?.();
-      }
-    };
-    requestAnimationFrame(step);
-  }
-
-  function applyScene(nextScene: Scene | null, isPlaylistSlot: boolean) {
-    if (!nextScene) {
-      currentSceneIdRef.current = null;
-      const a = videoARef.current;
-      const b = videoBRef.current;
-      if (a) {
-        a.pause();
-        a.removeAttribute('src');
-        a.style.opacity = '0';
-      }
-      if (b) {
-        b.pause();
-        b.removeAttribute('src');
-        b.style.opacity = '0';
-      }
-      return;
-    }
-
-    isPlaylistSlotRef.current = isPlaylistSlot;
-    shouldLoopRef.current = nextScene.loopEnabled && !isPlaylistSlot;
-
-    if (nextScene.id === currentSceneIdRef.current) return;
-
-    // Guard refs BEFORE mutating currentSceneIdRef — otherwise a tick that
-    // fires before the videos have mounted (or in StrictMode's first dev
-    // double-render) would set the ref and then early-return forever.
-    const buffer = bufferVideo();
-    const active = activeVideo();
-    if (!buffer || !active) return;
-
-    currentSceneIdRef.current = nextScene.id;
-
-    // Load the new scene onto the buffer, play it, crossfade in.
-    loadSceneOnVideo(buffer, nextScene.videoUrl, true);
-    buffer.style.opacity = '0';
-    active.style.opacity = '1';
-    fade(SCENE_CROSSFADE_MS, () => {
-      // After fade: the formerly-buffer is active. Prime the now-buffer
-      // with the same scene at currentTime=0 for seamless looping.
-      primeBuffer(nextScene.videoUrl);
-    });
-  }
-
-  function handleEnded(e: React.SyntheticEvent<HTMLVideoElement>) {
-    const isActive =
-      (e.currentTarget === videoARef.current && activeIsARef.current) ||
-      (e.currentTarget === videoBRef.current && !activeIsARef.current);
-    if (!isActive) return;
-
-    if (shouldLoopRef.current) {
-      // Seamless loop using the preloaded buffer.
-      const buffer = bufferVideo();
-      const active = activeVideo();
-      if (!buffer || !active) return;
-      if (buffer.readyState >= 2) {
-        buffer.currentTime = 0;
-        buffer.play().catch(() => {});
-        fade(LOOP_CROSSFADE_MS);
-      } else {
-        // Buffer not ready — fall back to a rewind on the active.
-        active.currentTime = 0;
-        active.play().catch(() => {});
-      }
-      return;
-    }
-    // Playlist advance
-    playlistIndexRef.current++;
-    tick();
-  }
-
-  // ── Scheduler tick / poll ──────────────────────────────────────────────
-
   function tick() {
     const snap = snapshotRef.current;
     if (!snap) return;
@@ -283,27 +145,23 @@ export function PreviewStage() {
         sceneId = pl.sceneIdsInOrder[playlistIndexRef.current % pl.sceneIdsInOrder.length];
       }
     }
-    if (!sceneId) {
-      setScene(null);
-      setSourceLabel('No scene to play');
-      applyScene(null, false);
-      return;
+
+    let nextScene: Scene | null = null;
+    if (sceneId) {
+      nextScene = snap.scenes.get(sceneId) ?? null;
     }
-    const nextScene = snap.scenes.get(sceneId);
-    if (!nextScene) {
-      setScene(null);
-      applyScene(null, false);
-      return;
-    }
-    setScene((prev) => (prev?.id === nextScene.id ? prev : nextScene));
+
+    setScene((prev) => (prev?.id === nextScene?.id ? prev : nextScene));
+    setShouldLoop(!!nextScene?.loopEnabled && !isPlaylistSlot);
     setSourceLabel(
-      slot.sourceEntryId === 'force_play'
+      !nextScene
+        ? 'No scene'
+        : slot.sourceEntryId === 'force_play'
         ? 'PLAYING'
         : slot.sourceEntryId === 'default'
         ? 'Default'
         : 'Scheduled',
     );
-    applyScene(nextScene, isPlaylistSlot);
 
     // Reconcile live overlay
     const { liveOverlayId, liveOverlayStartedAt } = snap.settings;
@@ -324,8 +182,7 @@ export function PreviewStage() {
         currentOverlayKeyRef.current = null;
         setOverlay(null);
         setOverlayStartedAt(null);
-        // Mirror Electron's autoclear, conditional on the same started_at we
-        // used to compute expiry — a re-tap in the meantime wins.
+        // Conditional clear: a re-tap between expiry computation and DB write wins.
         void getSupabase()
           .from('org_settings')
           .update({ live_overlay_id: null, live_overlay_started_at: null })
@@ -353,8 +210,8 @@ export function PreviewStage() {
         tick();
       } catch (e) {
         if (!active) return;
-        setError('Couldn’t reach Supabase. Check your connection.');
-        console.error(e);
+        setError(`Couldn't reach Supabase. ${e instanceof Error ? e.message : ''}`);
+        console.error('[preview] fetchSnapshot failed', e);
       }
     }
     poll();
@@ -368,6 +225,14 @@ export function PreviewStage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function onVideoEnded() {
+    // For playlist slots only — native loop handles single-scene loops.
+    if (!shouldLoop) {
+      playlistIndexRef.current++;
+      tick();
+    }
+  }
+
   return (
     <div className="fixed inset-0 bg-bg-base flex items-center justify-center p-5">
       <div
@@ -378,25 +243,26 @@ export function PreviewStage() {
           }`,
         }}
       >
-        {/* Both videos render unconditionally so refs are always available
-            by the time tick() first runs. Sources and playback are managed
-            imperatively in applyScene / primeBuffer. */}
-        <video
-          ref={videoARef}
-          muted
-          playsInline
-          onEnded={handleEnded}
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0 }}
-        />
-        <video
-          ref={videoBRef}
-          muted
-          playsInline
-          onEnded={handleEnded}
-          className="absolute inset-0 h-full w-full object-cover"
-          style={{ opacity: 0 }}
-        />
+        {scene ? (
+          <video
+            key={scene.id}
+            src={scene.videoUrl}
+            autoPlay
+            loop={shouldLoop}
+            muted
+            playsInline
+            onEnded={onVideoEnded}
+            onError={(e) =>
+              console.error('[preview] video error', (e.currentTarget as HTMLVideoElement).error)
+            }
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-fg-tertiary font-mono text-xs uppercase tracking-[2px]">
+            {error ?? 'Waiting for a scene…'}
+          </div>
+        )}
+
         {scene && <CompositionLayer composition={scene.composition} />}
         <LiveOverlayLayer overlay={overlay} startedAt={overlayStartedAt} />
 
