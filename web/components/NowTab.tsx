@@ -155,7 +155,7 @@ export function NowTab() {
     } catch {
       toast({
         variant: 'destructive',
-        title: 'Couldn’t show overlay',
+        title: 'Couldn’t show card',
         description: 'Check your connection and try again.',
       });
     }
@@ -279,9 +279,14 @@ export function NowTab() {
 
       <div className="flex flex-col gap-3">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-tertiary">
-            Live overlays
-          </span>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-semibold uppercase tracking-[0.08em] text-fg-tertiary">
+              Cards
+            </span>
+            <span className="text-xs text-fg-tertiary">
+              Pop on top of the playing scene · auto-clear after their hold time
+            </span>
+          </div>
           {isOverlayActiveNow && (
             <button
               onClick={clearOverlay}
@@ -294,11 +299,11 @@ export function NowTab() {
         </div>
         {state.overlays.length === 0 ? (
           <p className="text-sm text-fg-tertiary">
-            No overlays yet.{' '}
+            No cards yet.{' '}
             <a href="/dashboard/overlays" className="text-accent hover:text-accent-hover">
               Build one
             </a>{' '}
-            to push speaker cards, quotes, or logos on top of the video.
+            to pop speaker names, quotes, or logos on top of the playing scene.
           </p>
         ) : (
           <div className="flex flex-wrap gap-2">

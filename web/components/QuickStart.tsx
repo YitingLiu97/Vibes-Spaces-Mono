@@ -60,15 +60,15 @@ export function QuickStart({ hasOverlays }: Props) {
         <Step
           n={3}
           done={hasOverlays}
-          title="(Optional) Build overlays for live moments"
-          body="Speaker cards, quotes, logos. Tap one to push it on top of the playing video."
+          title="(Optional) Build cards for live moments"
+          body="Speaker names, quotes, logos. Tap one to pop it on top of the playing scene."
           cta={
             <Link
               href="/dashboard/overlays"
               className="inline-flex min-h-[40px] items-center gap-2 rounded-md border border-border bg-bg-base px-4 py-2 text-sm font-medium text-fg-primary hover:border-accent"
             >
               <Sparkles className="h-4 w-4" strokeWidth={1.5} />
-              Open Overlays
+              Open Cards
             </Link>
           }
         />

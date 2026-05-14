@@ -44,6 +44,11 @@ export class Scheduler {
   private pollInterval: number | null = null;
   private settingsPollInterval: number | null = null;
   private heartbeatInterval: number | null = null;
+  // Guards against the StrictMode double-mount race: start() is async,
+  // so its setInterval calls can fire AFTER stop() ran. Without this flag
+  // the first Scheduler's intervals never get cleared and two Schedulers
+  // race onPlay/onOverlay calls, which flickers the screen.
+  private stopped = false;
 
   constructor(
     private onPlay: (state: PlaybackState) => void,
@@ -51,15 +56,20 @@ export class Scheduler {
   ) {}
 
   async start() {
+    if (this.stopped) return;
     void window.log.info('scheduler_starting', { version: CLIENT_VERSION });
     try {
       const snap = await this.fetchSnapshot();
+      if (this.stopped) return;
       this.snapshot = snap;
       await window.cache.prefetchAll(Array.from(snap.scenes.values()));
+      if (this.stopped) return;
       void window.log.info('prefetch_complete', { count: snap.scenes.size });
     } catch (e) {
+      if (this.stopped) return;
       void window.log.error('startup_fetch_failed', { error: String(e) });
     }
+    if (this.stopped) return;
     this.tickInterval = window.setInterval(() => this.tick(), 1000);
     this.pollInterval = window.setInterval(() => void this.poll(), 30_000);
     // Fast-poll JUST the org_settings row at 1Hz so trigger writes
@@ -72,6 +82,7 @@ export class Scheduler {
   }
 
   stop() {
+    this.stopped = true;
     if (this.tickInterval) clearInterval(this.tickInterval);
     if (this.pollInterval) clearInterval(this.pollInterval);
     if (this.settingsPollInterval) clearInterval(this.settingsPollInterval);

@@ -114,7 +114,7 @@ export function OverlaysTab() {
       setLiveOverlayId(null);
       toast({
         variant: 'destructive',
-        title: 'Couldn’t trigger overlay',
+        title: 'Couldn’t show card',
         description: 'Check your connection and try again.',
       });
     }
@@ -123,7 +123,7 @@ export function OverlaysTab() {
   async function clearLive() {
     setLiveOverlayId(null);
     await getSupabase().from('org_settings').update({ live_overlay_id: null }).eq('org_id', ORG_ID);
-    toast({ title: 'Overlay cleared' });
+    toast({ title: 'Card cleared' });
   }
 
   async function deleteOverlay(o: Overlay) {
@@ -139,28 +139,29 @@ export function OverlaysTab() {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-fg-primary">Overlays</h1>
+        <h1 className="text-2xl font-semibold text-fg-primary">Cards</h1>
         <Button variant="primary" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" strokeWidth={1.5} />
-          New overlay
+          New card
         </Button>
       </div>
 
       <p className="text-sm text-fg-secondary">
-        Pre-build overlay cards, then tap one to push it to the venue display.
+        Quick moments to pop on top of the playing video — speaker names, quotes, logos.
+        Tap <strong>Show now</strong> on a card during the event to push it to the venue.
       </p>
 
       {loading ? (
         <div className="h-24 animate-pulse rounded-lg bg-bg-elevated" />
       ) : overlays.length === 0 ? (
         <div className="flex flex-col items-start gap-3 rounded-lg border border-border-subtle bg-bg-elevated p-8">
-          <p className="text-base text-fg-primary">No overlays yet.</p>
+          <p className="text-base text-fg-primary">No cards yet.</p>
           <p className="text-sm text-fg-secondary">
-            Create a speaker card, a quote, or a logo to layer over your scenes.
+            Create a speaker card, a quote, or a logo to pop over your scenes.
           </p>
           <Button variant="primary" onClick={() => setCreateOpen(true)}>
             <Plus className="h-4 w-4" strokeWidth={1.5} />
-            New overlay
+            New card
           </Button>
         </div>
       ) : (
@@ -355,7 +356,7 @@ function OverlayEditDialog({
         ? await supabase.from('overlays').update(row).eq('id', editing.id)
         : await supabase.from('overlays').insert(row);
       if (error) throw error;
-      toast({ title: editing ? 'Overlay updated' : 'Overlay created' });
+      toast({ title: editing ? 'Card updated' : 'Card created' });
       onSaved();
       onClose();
     } catch {
@@ -373,14 +374,14 @@ function OverlayEditDialog({
     <Modal
       open={open}
       onClose={onClose}
-      title={editing ? 'Edit overlay' : 'New overlay'}
+      title={editing ? 'Edit card' : 'New card'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
           <Button variant="primary" onClick={submit} disabled={submitting}>
-            {submitting ? 'Saving…' : editing ? 'Save changes' : 'Create overlay'}
+            {submitting ? 'Saving…' : editing ? 'Save changes' : 'Create card'}
           </Button>
         </>
       }

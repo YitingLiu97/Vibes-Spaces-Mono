@@ -9,7 +9,7 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 const TABS = [
   { href: '/dashboard', label: 'Now' },
   { href: '/dashboard/scenes', label: 'Scenes' },
-  { href: '/dashboard/overlays', label: 'Overlays' },
+  { href: '/dashboard/overlays', label: 'Cards' },
   { href: '/dashboard/playlists', label: 'Playlists' },
   { href: '/dashboard/schedule', label: 'Schedule' },
   { href: '/dashboard/settings', label: 'Settings' },
