@@ -101,6 +101,8 @@ export function PreviewStage() {
           forcePlaySceneId: sd.force_play_scene_id,
           liveOverlayId: sd.live_overlay_id ?? null,
           liveOverlayStartedAt: sd.live_overlay_started_at ?? null,
+          queueCurrentItemId: sd.queue_current_item_id ?? null,
+          queueStartedAt: sd.queue_started_at ?? null,
         }
       : {
           orgId: ORG_ID,
@@ -109,6 +111,8 @@ export function PreviewStage() {
           forcePlaySceneId: null,
           liveOverlayId: null,
           liveOverlayStartedAt: null,
+          queueCurrentItemId: null,
+          queueStartedAt: null,
         };
     const overlays = new Map<string, Overlay>(
       (overlaysRes.data ?? []).map((row) => [
@@ -223,6 +227,8 @@ export function PreviewStage() {
           forcePlaySceneId: data.force_play_scene_id,
           liveOverlayId: data.live_overlay_id ?? null,
           liveOverlayStartedAt: data.live_overlay_started_at ?? null,
+          queueCurrentItemId: data.queue_current_item_id ?? null,
+          queueStartedAt: data.queue_started_at ?? null,
         },
       };
     } catch (e) {

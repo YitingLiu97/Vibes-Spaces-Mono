@@ -1,6 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { resolve } from '../src/resolver.js';
-import type { OrgSettings, ScheduleEntry } from '../src/types.js';
+import type { OrgSettings, QueueItem, ScheduleEntry } from '../src/types.js';
+
+const qItem = (overrides: Partial<QueueItem> = {}): QueueItem => ({
+  id: 'q1',
+  position: 0,
+  sceneId: 'q-scene',
+  playlistId: null,
+  durationSeconds: 300,
+  ...overrides,
+});
 
 const settings = (overrides: Partial<OrgSettings> = {}): OrgSettings => ({
   orgId: 'test',
@@ -9,6 +18,8 @@ const settings = (overrides: Partial<OrgSettings> = {}): OrgSettings => ({
   forcePlaySceneId: null,
   liveOverlayId: null,
   liveOverlayStartedAt: null,
+  queueCurrentItemId: null,
+  queueStartedAt: null,
   ...overrides,
 });
 
@@ -146,5 +157,100 @@ describe('resolver', () => {
     ]);
     expect(slot.playlistId).toBe('pl-1');
     expect(slot.sourceEntryId).toBe('pl-entry');
+  });
+
+  // ── Queue ──────────────────────────────────────────────────────────────
+
+  it('queue auto-starts at items[0] when cursor is null', () => {
+    const now = new Date('2026-05-16T12:00:00');
+    const slot = resolve(now, settings(), [], [qItem({ id: 'q1', sceneId: 'q-scene' })]);
+    expect(slot.sceneId).toBe('q-scene');
+    expect(slot.queueItemId).toBe('q1');
+    expect(slot.sourceEntryId).toBe('queue:q1');
+  });
+
+  it('queue beats schedule/default but loses to force_play', () => {
+    const now = new Date('2026-05-16T12:00:00');
+    const forced = resolve(
+      now,
+      settings({ forcePlaySceneId: 'forced' }),
+      [],
+      [qItem({ sceneId: 'q-scene' })],
+    );
+    expect(forced.sceneId).toBe('forced');
+    expect(forced.queueItemId).toBeNull();
+
+    const queued = resolve(now, settings(), [], [qItem({ sceneId: 'q-scene' })]);
+    expect(queued.sceneId).toBe('q-scene');
+  });
+
+  it('queue catch-up jumps to the item whose window contains elapsed', () => {
+    // started 12 minutes ago. items: A(5min) B(5min) C(5min).
+    // accumulated: A=5, A+B=10, A+B+C=15. elapsed=12 → in window of C.
+    const startedAt = new Date('2026-05-16T12:00:00');
+    const now = new Date('2026-05-16T12:12:00');
+    const slot = resolve(
+      now,
+      settings({ queueCurrentItemId: 'q-a', queueStartedAt: startedAt.toISOString() }),
+      [],
+      [
+        qItem({ id: 'q-a', position: 0, durationSeconds: 300, sceneId: 'a' }),
+        qItem({ id: 'q-b', position: 1, durationSeconds: 300, sceneId: 'b' }),
+        qItem({ id: 'q-c', position: 2, durationSeconds: 300, sceneId: 'c' }),
+      ],
+    );
+    expect(slot.sceneId).toBe('c');
+    expect(slot.queueItemId).toBe('q-c');
+  });
+
+  it('queue exhaustion returns null and falls through to default', () => {
+    // started 1 hour ago, 3 items of 5min each = 15min total. elapsed=60 > 15.
+    const startedAt = new Date('2026-05-16T11:00:00');
+    const now = new Date('2026-05-16T12:00:00');
+    const slot = resolve(
+      now,
+      settings({ queueCurrentItemId: 'q-a', queueStartedAt: startedAt.toISOString() }),
+      [],
+      [
+        qItem({ id: 'q-a', position: 0, durationSeconds: 300 }),
+        qItem({ id: 'q-b', position: 1, durationSeconds: 300 }),
+        qItem({ id: 'q-c', position: 2, durationSeconds: 300 }),
+      ],
+    );
+    expect(slot.sceneId).toBe('default-scene');
+    expect(slot.sourceEntryId).toBe('default');
+    expect(slot.queueItemId).toBeNull();
+  });
+
+  it('queue restarts at items[0] when the cursor item was deleted', () => {
+    // cursor points to q-gone, which isn't in the list anymore.
+    const now = new Date('2026-05-16T12:00:00');
+    const startedAt = new Date('2026-05-16T11:59:00').toISOString();
+    const slot = resolve(
+      now,
+      settings({ queueCurrentItemId: 'q-gone', queueStartedAt: startedAt }),
+      [],
+      [
+        qItem({ id: 'q-a', position: 0, sceneId: 'a' }),
+        qItem({ id: 'q-b', position: 1, sceneId: 'b' }),
+      ],
+    );
+    expect(slot.queueItemId).toBe('q-a');
+  });
+
+  it('queue stays put when startedAt is in the future (clock skew)', () => {
+    const now = new Date('2026-05-16T12:00:00');
+    const future = new Date('2026-05-16T13:00:00').toISOString();
+    const slot = resolve(
+      now,
+      settings({ queueCurrentItemId: 'q-b', queueStartedAt: future }),
+      [],
+      [
+        qItem({ id: 'q-a', position: 0 }),
+        qItem({ id: 'q-b', position: 1, sceneId: 'on-b' }),
+      ],
+    );
+    expect(slot.queueItemId).toBe('q-b');
+    expect(slot.sceneId).toBe('on-b');
   });
 });

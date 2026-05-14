@@ -69,6 +69,14 @@ export interface ScheduleEntry {
   overrideDate: string | null;
 }
 
+export interface QueueItem {
+  id: string;
+  position: number;
+  sceneId: string | null;
+  playlistId: string | null;
+  durationSeconds: number;
+}
+
 export interface OrgSettings {
   orgId: string;
   defaultSceneId: string | null;
@@ -76,12 +84,18 @@ export interface OrgSettings {
   forcePlaySceneId: string | null;
   liveOverlayId: string | null;
   liveOverlayStartedAt: string | null;
+  queueCurrentItemId: string | null;
+  queueStartedAt: string | null;
 }
 
 export interface ResolvedSlot {
   sceneId: string | null;
   playlistId: string | null;
   sourceEntryId: string | null;
+  // When set, the runtime should persist this as the new queue cursor
+  // (queue_current_item_id + queue_started_at = now) if it differs from
+  // settings.queueCurrentItemId. null means "queue is not driving playback".
+  queueItemId: string | null;
 }
 
 export interface ClientStatus {

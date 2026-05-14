@@ -11,6 +11,7 @@ const TABS = [
   { href: '/dashboard/scenes', label: 'Scenes' },
   { href: '/dashboard/overlays', label: 'Cards' },
   { href: '/dashboard/playlists', label: 'Playlists' },
+  { href: '/dashboard/queue', label: 'Queue' },
   { href: '/dashboard/schedule', label: 'Schedule' },
   { href: '/dashboard/settings', label: 'Settings' },
 ];

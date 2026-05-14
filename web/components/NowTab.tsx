@@ -73,6 +73,8 @@ export function NowTab() {
               forcePlaySceneId: settingsRes.data.force_play_scene_id,
               liveOverlayId: settingsRes.data.live_overlay_id ?? null,
               liveOverlayStartedAt: settingsRes.data.live_overlay_started_at ?? null,
+              queueCurrentItemId: settingsRes.data.queue_current_item_id ?? null,
+              queueStartedAt: settingsRes.data.queue_started_at ?? null,
             }
           : null;
 

@@ -3,6 +3,7 @@ import { resolve } from '@vibes/shared/resolver';
 import type {
   Scene,
   Playlist,
+  QueueItem,
   ScheduleEntry,
   OrgSettings,
   Overlay,
@@ -15,6 +16,7 @@ interface Snapshot {
   scenes: Map<string, Scene>;
   playlists: Map<string, Playlist>;
   entries: ScheduleEntry[];
+  queueItems: QueueItem[];
   settings: OrgSettings;
   overlays: Map<string, Overlay>;
   fetchedAt: Date;
@@ -90,7 +92,7 @@ export class Scheduler {
   }
 
   private async fetchSnapshot(): Promise<Snapshot> {
-    const [scenesRes, plRes, entriesRes, settingsRes, overlaysRes] = await Promise.all([
+    const [scenesRes, plRes, entriesRes, queueRes, settingsRes, overlaysRes] = await Promise.all([
       this.supabase.from('scenes').select('*').eq('org_id', ORG_ID),
       this.supabase
         .from('playlists')
@@ -102,6 +104,11 @@ export class Scheduler {
         .select('*')
         .eq('org_id', ORG_ID)
         .order('created_at', { ascending: false }),
+      this.supabase
+        .from('queue_items')
+        .select('*')
+        .eq('org_id', ORG_ID)
+        .order('position', { ascending: true }),
       this.supabase.from('org_settings').select('*').eq('org_id', ORG_ID).maybeSingle(),
       this.supabase.from('overlays').select('*').eq('org_id', ORG_ID),
     ]);
@@ -144,6 +151,14 @@ export class Scheduler {
       overrideDate: e.override_date,
     }));
 
+    const queueItems: QueueItem[] = (queueRes.data ?? []).map((q) => ({
+      id: q.id,
+      position: q.position,
+      sceneId: q.scene_id,
+      playlistId: q.playlist_id,
+      durationSeconds: q.duration_seconds,
+    }));
+
     const sd = settingsRes.data;
     const settings: OrgSettings = sd
       ? {
@@ -153,6 +168,8 @@ export class Scheduler {
           forcePlaySceneId: sd.force_play_scene_id,
           liveOverlayId: sd.live_overlay_id ?? null,
           liveOverlayStartedAt: sd.live_overlay_started_at ?? null,
+          queueCurrentItemId: sd.queue_current_item_id ?? null,
+          queueStartedAt: sd.queue_started_at ?? null,
         }
       : {
           orgId: ORG_ID,
@@ -161,6 +178,8 @@ export class Scheduler {
           forcePlaySceneId: null,
           liveOverlayId: null,
           liveOverlayStartedAt: null,
+          queueCurrentItemId: null,
+          queueStartedAt: null,
         };
 
     const overlays = new Map<string, Overlay>(
@@ -178,7 +197,7 @@ export class Scheduler {
       ]),
     );
 
-    return { scenes, playlists, entries, settings, overlays, fetchedAt: new Date() };
+    return { scenes, playlists, entries, queueItems, settings, overlays, fetchedAt: new Date() };
   }
 
   private async poll() {
@@ -212,6 +231,8 @@ export class Scheduler {
         forcePlaySceneId: data.force_play_scene_id,
         liveOverlayId: data.live_overlay_id ?? null,
         liveOverlayStartedAt: data.live_overlay_started_at ?? null,
+        queueCurrentItemId: data.queue_current_item_id ?? null,
+        queueStartedAt: data.queue_started_at ?? null,
       };
       // Atomic reference swap — tick() reads this.snapshot via local var so
       // it sees a consistent settings object even if we replace mid-frame.
@@ -225,7 +246,42 @@ export class Scheduler {
     const snap = this.snapshot;
     if (!snap) return;
 
-    const slot = resolve(new Date(), snap.settings, snap.entries);
+    const slot = resolve(new Date(), snap.settings, snap.entries, snap.queueItems);
+
+    // If the resolver picked a different queue item than what's stored, write
+    // the new cursor back. Optimistically mutate the in-memory snapshot so the
+    // next tick sees the new cursor without waiting for the round-trip.
+    if (slot.queueItemId && slot.queueItemId !== snap.settings.queueCurrentItemId) {
+      const startedAt = new Date().toISOString();
+      this.snapshot = {
+        ...snap,
+        settings: {
+          ...snap.settings,
+          queueCurrentItemId: slot.queueItemId,
+          queueStartedAt: startedAt,
+        },
+      };
+      void this.supabase
+        .from('org_settings')
+        .update({ queue_current_item_id: slot.queueItemId, queue_started_at: startedAt })
+        .eq('org_id', ORG_ID)
+        .then(({ error }) => {
+          if (error) void window.log.error('queue_cursor_write_failed', { error: String(error) });
+        });
+    } else if (!slot.queueItemId && snap.settings.queueCurrentItemId) {
+      // Resolver fell through to schedule/default — clear the cursor.
+      this.snapshot = {
+        ...snap,
+        settings: { ...snap.settings, queueCurrentItemId: null, queueStartedAt: null },
+      };
+      void this.supabase
+        .from('org_settings')
+        .update({ queue_current_item_id: null, queue_started_at: null })
+        .eq('org_id', ORG_ID)
+        .then(({ error }) => {
+          if (error) void window.log.error('queue_cursor_clear_failed', { error: String(error) });
+        });
+    }
 
     if (slot.sourceEntryId !== this.currentEntryId) {
       this.currentEntryId = slot.sourceEntryId;
