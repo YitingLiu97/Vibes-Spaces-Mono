@@ -216,11 +216,14 @@ export function PreviewStage() {
 
     if (nextScene.id === currentSceneIdRef.current) return;
 
-    currentSceneIdRef.current = nextScene.id;
-
+    // Guard refs BEFORE mutating currentSceneIdRef — otherwise a tick that
+    // fires before the videos have mounted (or in StrictMode's first dev
+    // double-render) would set the ref and then early-return forever.
     const buffer = bufferVideo();
     const active = activeVideo();
     if (!buffer || !active) return;
+
+    currentSceneIdRef.current = nextScene.id;
 
     // Load the new scene onto the buffer, play it, crossfade in.
     loadSceneOnVideo(buffer, nextScene.videoUrl, true);
@@ -375,6 +378,9 @@ export function PreviewStage() {
           }`,
         }}
       >
+        {/* Both videos render unconditionally so refs are always available
+            by the time tick() first runs. Sources and playback are managed
+            imperatively in applyScene / primeBuffer. */}
         <video
           ref={videoARef}
           muted
