@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Layers, Play, Trash, Upload } from 'lucide-react';
+import { FileJson, Layers, Play, Trash, Upload } from 'lucide-react';
 import type { Scene } from '@vibes/shared/types';
 import { getSupabase } from '@/lib/supabase';
 import { ORG_ID, STORAGE_BUCKET } from '@/lib/constants';
@@ -10,11 +10,13 @@ import { Modal } from './Modal';
 import { useToast } from './Toast';
 import { GenerateFromReferenceButton } from './GenerateFromReferenceButton';
 import { ComposeDialog } from './ComposeDialog';
+import { ImportEventDialog } from './ImportEventDialog';
 
 export function ScenesTab() {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [composingScene, setComposingScene] = useState<Scene | null>(null);
   const [forcedSceneId, setForcedSceneId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -123,6 +125,10 @@ export function ScenesTab() {
         <h1 className="text-2xl font-semibold text-fg-primary">Scenes</h1>
         <div className="flex items-center gap-2">
           <GenerateFromReferenceButton surface="scenes_tab" />
+          <Button variant="secondary" onClick={() => setImportOpen(true)}>
+            <FileJson className="h-4 w-4" strokeWidth={1.5} />
+            Import event
+          </Button>
           <Button variant="primary" onClick={() => setUploadOpen(true)}>
             <Upload className="h-4 w-4" strokeWidth={1.5} />
             Add scene
@@ -214,8 +220,22 @@ export function ScenesTab() {
         onClose={() => setComposingScene(null)}
         onSaved={refresh}
       />
+
+      <ImportEventDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={refresh}
+      />
     </div>
   );
+}
+
+function nameFromFilename(name: string): string {
+  return name
+    .replace(/\.[^/.]+$/, '') // drop extension
+    .replace(/[_\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function ScenesUploadDialog({
@@ -228,95 +248,147 @@ function ScenesUploadDialog({
   onUploaded: () => void;
 }) {
   const [name, setName] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [hideAttribution, setHideAttribution] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const { toast } = useToast();
 
+  const isBulk = files.length > 1;
+  // Single-file uploads default to nameFromFilename when the user doesn't type
+  // a custom name, so the dialog never blocks on a required name field.
+  const canSubmit = files.length > 0;
+
+  async function uploadOne(file: File, sceneName: string) {
+    const id = crypto.randomUUID();
+    const ext = file.name.split('.').pop() ?? 'mp4';
+    const path = `${ORG_ID}/${id}.${ext}`;
+    const supabase = getSupabase();
+    const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
+    if (upErr) throw upErr;
+    const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    const { error: insErr } = await supabase.from('scenes').insert({
+      id,
+      org_id: ORG_ID,
+      name: sceneName,
+      video_url: pub.publicUrl,
+      hide_attribution: hideAttribution,
+    });
+    if (insErr) throw insErr;
+  }
+
   async function submit() {
-    if (!file || !name.trim()) return;
+    if (!canSubmit) return;
     setUploading(true);
-    try {
-      const id = crypto.randomUUID();
-      const ext = file.name.split('.').pop() ?? 'mp4';
-      const path = `${ORG_ID}/${id}.${ext}`;
-      const supabase = getSupabase();
-      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
-      if (upErr) throw upErr;
-      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
-      const { error: insErr } = await supabase.from('scenes').insert({
-        id,
-        org_id: ORG_ID,
-        name: name.trim(),
-        video_url: pub.publicUrl,
-        hide_attribution: hideAttribution,
+    setProgress({ done: 0, total: files.length });
+    let failed = 0;
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i];
+      const sceneName = isBulk
+        ? nameFromFilename(f.name)
+        : name.trim() || nameFromFilename(f.name);
+      try {
+        await uploadOne(f, sceneName);
+      } catch (e) {
+        failed++;
+        console.error('[scenes] upload failed', f.name, e);
+      }
+      setProgress({ done: i + 1, total: files.length });
+    }
+    setUploading(false);
+    setProgress(null);
+    const succeeded = files.length - failed;
+    if (succeeded > 0) {
+      toast({
+        title: isBulk ? `${succeeded} scenes synced` : 'Scene synced',
+        description: failed > 0 ? `${failed} failed — check the console.` : undefined,
       });
-      if (insErr) throw insErr;
-      toast({ title: 'Scene synced', description: name.trim() });
-      setName('');
-      setFile(null);
-      setHideAttribution(false);
-      onUploaded();
-      onClose();
-    } catch (e) {
+    }
+    if (failed > 0 && succeeded === 0) {
       toast({
         variant: 'destructive',
         title: 'Couldn’t upload',
         description: 'Check your connection and try again.',
       });
-    } finally {
-      setUploading(false);
     }
+    setName('');
+    setFiles([]);
+    setHideAttribution(false);
+    onUploaded();
+    if (succeeded > 0) onClose();
   }
 
   return (
     <Modal
       open={open}
       onClose={onClose}
-      title="Add scene"
+      title={isBulk ? `Add ${files.length} scenes` : 'Add scene'}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} disabled={uploading}>
             Cancel
           </Button>
-          <Button variant="primary" onClick={submit} disabled={!file || !name.trim() || uploading}>
-            {uploading ? 'Uploading…' : 'Add scene'}
+          <Button variant="primary" onClick={submit} disabled={!canSubmit || uploading}>
+            {uploading
+              ? progress
+                ? `Uploading ${progress.done}/${progress.total}…`
+                : 'Uploading…'
+              : isBulk
+              ? `Add ${files.length} scenes`
+              : 'Add scene'}
           </Button>
         </>
       }
     >
       <div className="flex flex-col gap-4">
         <label className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-fg-primary">Name</span>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Calm focus"
-            className="rounded-md border border-border bg-bg-base px-3 py-3 text-base text-fg-primary placeholder:text-fg-tertiary"
-          />
-        </label>
-        <label className="flex flex-col gap-2">
-          <span className="text-sm font-medium text-fg-primary">Video file</span>
+          <span className="text-sm font-medium text-fg-primary">
+            Video file{isBulk ? 's' : ''}
+          </span>
           <input
             type="file"
             accept="video/*"
-            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            multiple
+            onChange={(e) => setFiles(e.target.files ? Array.from(e.target.files) : [])}
             className="rounded-md border border-border bg-bg-base px-3 py-3 text-sm text-fg-primary"
           />
-          {file && (
-            <span className="text-xs text-fg-tertiary">
-              {file.name} · {(file.size / 1024 / 1024).toFixed(1)} MB
-            </span>
+          <span className="text-xs text-fg-tertiary">
+            Tip: select multiple files at once to bulk-add scenes. Each scene takes its name from the filename.
+          </span>
+          {files.length > 0 && (
+            <ul className="mt-1 flex flex-col gap-1 max-h-[200px] overflow-y-auto rounded border border-border-subtle bg-bg-base p-2">
+              {files.map((f, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 text-xs text-fg-secondary">
+                  <span className="font-mono truncate">
+                    {isBulk ? nameFromFilename(f.name) : f.name}
+                  </span>
+                  <span className="text-fg-tertiary flex-shrink-0">
+                    {(f.size / 1024 / 1024).toFixed(1)} MB
+                  </span>
+                </li>
+              ))}
+            </ul>
           )}
         </label>
+        {!isBulk && files.length === 1 && (
+          <label className="flex flex-col gap-2">
+            <span className="text-sm font-medium text-fg-primary">Name</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={nameFromFilename(files[0].name)}
+              className="rounded-md border border-border bg-bg-base px-3 py-3 text-base text-fg-primary placeholder:text-fg-tertiary"
+            />
+          </label>
+        )}
         <label className="flex items-center gap-2 text-sm text-fg-secondary">
           <input
             type="checkbox"
             checked={hideAttribution}
             onChange={(e) => setHideAttribution(e.target.checked)}
           />
-          Hide Vibes attribution on this scene
+          Hide Vibes attribution{isBulk ? ' on all of these' : ' on this scene'}
         </label>
       </div>
     </Modal>

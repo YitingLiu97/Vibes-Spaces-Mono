@@ -71,6 +71,63 @@ The Electron renderer and `/preview` both use a **ping-pong buffer** to bypass C
 
 Each loop plays the full video length; the fade overlaps last-frame-of-n with first-frame-of-n+1.
 
+### Batch import
+
+For events with many scenes, cards, and schedule entries, use the Scenes tab's **Import event** button. It takes a single JSON file:
+
+```json
+{
+  "version": 1,
+  "scenes": [
+    {
+      "match": { "filename": "01_arrival_clip.mp4" },
+      "name": "Arrival",
+      "loopEnabled": true,
+      "composition": {
+        "zones": {
+          "header": { "imageUrl": null, "position": "center" },
+          "center": { "imageUrl": null, "position": "center" },
+          "footer": { "imageUrl": null, "position": "center" }
+        },
+        "caption": {
+          "text": "Welcome to FoNYCD",
+          "font": "bebas",
+          "size": 56,
+          "color": "#F0EAF5",
+          "h": "center",
+          "v": "bottom"
+        },
+        "tint": { "color": "#141418", "opacity": 30 },
+        "accent": null
+      }
+    }
+  ],
+  "cards": [
+    {
+      "name": "Maya Chen — keynote",
+      "type": "speaker_card",
+      "content": { "name": "Maya Chen", "role": "Designer" },
+      "animation": "slide-up",
+      "durationMs": 8000
+    }
+  ],
+  "schedule": [
+    {
+      "sceneName": "Arrival",
+      "startTime": "09:00",
+      "endTime": "10:00",
+      "weeklyDays": ["thu", "fri"]
+    }
+  ]
+}
+```
+
+Notes:
+- **Scenes** match an existing row by `match: { name }` or `match: { filename }`. Videos must be uploaded first (use multi-select on the Add scene dialog — drop multiple .mp4s at once).
+- **Cards** are appended — import never deletes existing cards.
+- **Schedule** entries reference scenes/playlists by name. Use either `weeklyDays: ["thu"]` or `overrideDate: "2026-05-14"`, not both.
+- The dialog has a **Download example.json** button that emits a working starter file.
+
 ### Brand
 
 - Accent: **`#C07FD4`** (Vibes purple)
