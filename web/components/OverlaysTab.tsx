@@ -31,16 +31,27 @@ const ANIMATION_LABELS: Record<OverlayAnimation, string> = {
 export function OverlaysTab() {
   const [overlays, setOverlays] = useState<Overlay[]>([]);
   const [liveOverlayId, setLiveOverlayId] = useState<string | null>(null);
+  const [liveOverlayStartedAt, setLiveOverlayStartedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [editing, setEditing] = useState<Overlay | null>(null);
+  // 1Hz ticker so the per-row countdown re-renders every second.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => setTick((t) => t + 1), 1000);
+    return () => window.clearInterval(id);
+  }, []);
   const { toast } = useToast();
 
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
     const [oRes, sRes] = await Promise.all([
       supabase.from('overlays').select('*').eq('org_id', ORG_ID).order('created_at', { ascending: false }),
-      supabase.from('org_settings').select('live_overlay_id').eq('org_id', ORG_ID).maybeSingle(),
+      supabase
+        .from('org_settings')
+        .select('live_overlay_id, live_overlay_started_at')
+        .eq('org_id', ORG_ID)
+        .maybeSingle(),
     ]);
     setOverlays(
       (oRes.data ?? []).map((row) => ({
@@ -54,12 +65,38 @@ export function OverlaysTab() {
       })),
     );
     setLiveOverlayId(sRes.data?.live_overlay_id ?? null);
+    setLiveOverlayStartedAt(sRes.data?.live_overlay_started_at ?? null);
     setLoading(false);
   }, []);
 
   useEffect(() => {
     refresh().catch(() => setLoading(false));
+    // Fast-poll just the live overlay state so re-tapping shows the new
+    // started_at within ~1s and the row's countdown reflects reality.
+    const pollId = window.setInterval(() => {
+      getSupabase()
+        .from('org_settings')
+        .select('live_overlay_id, live_overlay_started_at')
+        .eq('org_id', ORG_ID)
+        .maybeSingle()
+        .then(({ data }) => {
+          setLiveOverlayId(data?.live_overlay_id ?? null);
+          setLiveOverlayStartedAt(data?.live_overlay_started_at ?? null);
+        });
+    }, 1000);
+    return () => window.clearInterval(pollId);
   }, [refresh]);
+
+  const liveOverlay = liveOverlayId ? overlays.find((o) => o.id === liveOverlayId) : null;
+  const overlayElapsedMs =
+    liveOverlay && liveOverlayStartedAt
+      ? Date.now() - new Date(liveOverlayStartedAt).getTime()
+      : 0;
+  const isLiveNow = !!liveOverlay && overlayElapsedMs < (liveOverlay?.durationMs ?? 0);
+  const remainingSec =
+    liveOverlay && isLiveNow
+      ? Math.max(0, Math.ceil((liveOverlay.durationMs - overlayElapsedMs) / 1000))
+      : 0;
 
   async function showNow(overlay: Overlay) {
     setLiveOverlayId(overlay.id);
@@ -136,9 +173,9 @@ export function OverlaysTab() {
               <div className="flex flex-1 flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <span className="text-base font-medium text-fg-primary">{o.name}</span>
-                  {liveOverlayId === o.id && (
-                    <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning">
-                      Live
+                  {isLiveNow && liveOverlayId === o.id && (
+                    <span className="rounded-full bg-warning-soft px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-warning tabular-nums">
+                      Live · {remainingSec}s
                     </span>
                   )}
                 </div>
@@ -167,9 +204,12 @@ export function OverlaysTab() {
         </ul>
       )}
 
-      {liveOverlayId && (
+      {isLiveNow && liveOverlay && (
         <div className="flex items-center justify-between rounded-lg border border-warning/30 bg-warning-soft p-4">
-          <span className="text-sm text-fg-primary">An overlay is currently live on the venue display.</span>
+          <span className="text-sm text-fg-primary">
+            <span className="font-semibold">{liveOverlay.name}</span> showing on the venue ·{' '}
+            <span className="tabular-nums">{remainingSec}s</span> remaining
+          </span>
           <Button variant="secondary" size="sm" onClick={clearLive}>
             Clear
           </Button>

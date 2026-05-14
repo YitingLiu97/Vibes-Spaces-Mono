@@ -42,6 +42,7 @@ export class Scheduler {
   private lastPlayedSceneId: string | null = null;
   private tickInterval: number | null = null;
   private pollInterval: number | null = null;
+  private settingsPollInterval: number | null = null;
   private heartbeatInterval: number | null = null;
 
   constructor(
@@ -61,12 +62,19 @@ export class Scheduler {
     }
     this.tickInterval = window.setInterval(() => this.tick(), 1000);
     this.pollInterval = window.setInterval(() => void this.poll(), 30_000);
+    // Fast-poll JUST the org_settings row at 1Hz so trigger writes
+    // (force-play, live overlay) take effect within ~1s instead of waiting
+    // for the next heavy 30s snapshot fetch. The full snapshot poll above
+    // still handles scenes/playlists/overlays/entries — those don't change
+    // mid-event and tolerate slower polling.
+    this.settingsPollInterval = window.setInterval(() => void this.pollSettings(), 1000);
     this.heartbeatInterval = window.setInterval(() => void this.heartbeat(), 15_000);
   }
 
   stop() {
     if (this.tickInterval) clearInterval(this.tickInterval);
     if (this.pollInterval) clearInterval(this.pollInterval);
+    if (this.settingsPollInterval) clearInterval(this.settingsPollInterval);
     if (this.heartbeatInterval) clearInterval(this.heartbeatInterval);
   }
 
@@ -169,6 +177,36 @@ export class Scheduler {
       void window.cache.prefetchAll(Array.from(snap.scenes.values()));
     } catch (e) {
       void window.log.error('poll_failed', { error: String(e) });
+    }
+  }
+
+  // Lightweight 1Hz fetch: just the single org_settings row.
+  // Cheap (~6 columns, one row) and makes overlay/force-play triggers
+  // visibly fire within a second instead of getting silently expired
+  // by the 30s heavy-poll cadence.
+  private async pollSettings() {
+    if (!this.snapshot) return;
+    try {
+      const { data, error } = await this.supabase
+        .from('org_settings')
+        .select('*')
+        .eq('org_id', ORG_ID)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return;
+      const settings: OrgSettings = {
+        orgId: data.org_id,
+        defaultSceneId: data.default_scene_id,
+        attributionEnabled: data.attribution_enabled,
+        forcePlaySceneId: data.force_play_scene_id,
+        liveOverlayId: data.live_overlay_id ?? null,
+        liveOverlayStartedAt: data.live_overlay_started_at ?? null,
+      };
+      // Atomic reference swap — tick() reads this.snapshot via local var so
+      // it sees a consistent settings object even if we replace mid-frame.
+      this.snapshot = { ...this.snapshot, settings };
+    } catch (e) {
+      void window.log.error('settings_poll_failed', { error: String(e) });
     }
   }
 

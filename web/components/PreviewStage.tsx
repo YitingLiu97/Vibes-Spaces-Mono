@@ -199,6 +199,37 @@ export function PreviewStage() {
     }
   }
 
+  // Lightweight 1Hz settings-only fetch. Makes overlay/force-play
+  // triggers visible within ~1s instead of being silently expired by
+  // the 5s heavy poll (a 6s overlay triggered mid-poll-cycle has almost
+  // no chance of showing under the heavy-poll-only model).
+  async function pollSettings() {
+    const snap = snapshotRef.current;
+    if (!snap) return;
+    try {
+      const { data, error: err } = await getSupabase()
+        .from('org_settings')
+        .select('*')
+        .eq('org_id', ORG_ID)
+        .maybeSingle();
+      if (err) throw err;
+      if (!data) return;
+      snapshotRef.current = {
+        ...snap,
+        settings: {
+          orgId: data.org_id,
+          defaultSceneId: data.default_scene_id,
+          attributionEnabled: data.attribution_enabled,
+          forcePlaySceneId: data.force_play_scene_id,
+          liveOverlayId: data.live_overlay_id ?? null,
+          liveOverlayStartedAt: data.live_overlay_started_at ?? null,
+        },
+      };
+    } catch (e) {
+      console.warn('[preview] settings poll failed', e);
+    }
+  }
+
   useEffect(() => {
     let active = true;
     async function poll() {
@@ -216,10 +247,12 @@ export function PreviewStage() {
     }
     poll();
     const pollId = window.setInterval(poll, POLL_MS);
+    const settingsPollId = window.setInterval(pollSettings, 1000);
     const tickId = window.setInterval(tick, 1000);
     return () => {
       active = false;
       window.clearInterval(pollId);
+      window.clearInterval(settingsPollId);
       window.clearInterval(tickId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

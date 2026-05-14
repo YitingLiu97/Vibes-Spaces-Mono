@@ -208,10 +208,15 @@ export function NowTab() {
   const liveOverlayId = state.settings?.liveOverlayId ?? null;
   const liveOverlayStartedAt = state.settings?.liveOverlayStartedAt ?? null;
   const liveOverlay = liveOverlayId ? state.overlays.find((o) => o.id === liveOverlayId) : null;
-  const isOverlayActiveNow =
-    !!liveOverlay &&
-    !!liveOverlayStartedAt &&
-    Date.now() - new Date(liveOverlayStartedAt).getTime() < liveOverlay.durationMs;
+  const overlayElapsedMs =
+    liveOverlay && liveOverlayStartedAt
+      ? Date.now() - new Date(liveOverlayStartedAt).getTime()
+      : 0;
+  const isOverlayActiveNow = !!liveOverlay && overlayElapsedMs < (liveOverlay?.durationMs ?? 0);
+  const overlayRemainingSeconds =
+    liveOverlay && isOverlayActiveNow
+      ? Math.max(0, Math.ceil((liveOverlay.durationMs - overlayElapsedMs) / 1000))
+      : 0;
 
   const isFirstRun = !state.loading && state.sceneCount === 0;
 
@@ -303,6 +308,7 @@ export function NowTab() {
                 <button
                   key={o.id}
                   onClick={() => showOverlay(o)}
+                  title={`${Math.round(o.durationMs / 1000)}s hold`}
                   className={
                     isLive
                       ? 'inline-flex items-center gap-2 rounded-md border border-warning bg-warning-soft px-3 py-2 text-sm font-medium text-warning min-h-[40px]'
@@ -310,9 +316,13 @@ export function NowTab() {
                   }
                 >
                   {o.name}
-                  {isLive && (
-                    <span className="rounded-full bg-warning px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-bg-base">
-                      Live
+                  {isLive ? (
+                    <span className="rounded-full bg-warning px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-bg-base tabular-nums">
+                      Live · {overlayRemainingSeconds}s
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-bg-overlay px-1.5 py-0.5 text-[9px] font-mono uppercase tracking-wider text-fg-tertiary tabular-nums">
+                      {Math.round(o.durationMs / 1000)}s
                     </span>
                   )}
                 </button>
