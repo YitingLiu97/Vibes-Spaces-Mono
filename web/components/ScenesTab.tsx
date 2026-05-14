@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { FileJson, Layers, Play, Trash, Upload } from 'lucide-react';
+import { Download, FileJson, Layers, Play, Trash, Upload } from 'lucide-react';
 import type { Scene } from '@vibes/shared/types';
 import { getSupabase } from '@/lib/supabase';
 import { ORG_ID, STORAGE_BUCKET } from '@/lib/constants';
@@ -11,12 +11,14 @@ import { useToast } from './Toast';
 import { GenerateFromReferenceButton } from './GenerateFromReferenceButton';
 import { ComposeDialog } from './ComposeDialog';
 import { ImportEventDialog } from './ImportEventDialog';
+import { ExportEventDialog } from './ExportEventDialog';
 
 export function ScenesTab() {
   const [scenes, setScenes] = useState<Scene[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const [composingScene, setComposingScene] = useState<Scene | null>(null);
   const [forcedSceneId, setForcedSceneId] = useState<string | null>(null);
   const { toast } = useToast();
@@ -125,6 +127,10 @@ export function ScenesTab() {
         <h1 className="text-2xl font-semibold text-fg-primary">Scenes</h1>
         <div className="flex items-center gap-2">
           <GenerateFromReferenceButton surface="scenes_tab" />
+          <Button variant="ghost" size="sm" onClick={() => setExportOpen(true)} title="Export event">
+            <Download className="h-4 w-4" strokeWidth={1.5} />
+            Export
+          </Button>
           <Button variant="secondary" onClick={() => setImportOpen(true)}>
             <FileJson className="h-4 w-4" strokeWidth={1.5} />
             Import event
@@ -225,6 +231,11 @@ export function ScenesTab() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onImported={refresh}
+      />
+
+      <ExportEventDialog
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
       />
     </div>
   );
