@@ -1,6 +1,7 @@
 import type { Overlay, Scene } from '@vibes/shared/types';
 import { OverlayLayer } from './OverlayLayer';
 import { CompositionLayer } from './CompositionLayer';
+import { srcFor } from './runtime';
 
 interface Props {
   sceneToPlay: Scene | null;
@@ -34,7 +35,7 @@ export function ScenePlayer({
           // a clean .load() / .play() cycle without manual seek juggling.
           key={sceneToPlay.id}
           className="layer"
-          src={`vibes-scene://${sceneToPlay.id}.mp4`}
+          src={srcFor(sceneToPlay)}
           autoPlay
           loop={shouldLoop}
           muted
