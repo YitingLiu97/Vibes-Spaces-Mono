@@ -1,6 +1,9 @@
 @import '../../shared/src/tokens.css';
 @import '../components/composition.css';
 @import '../components/liveOverlay.css';
+@import '../components/segments.css';
+@import '../components/build.css';
+@import '../components/schedule.css';
 
 @tailwind base;
 @tailwind components;
