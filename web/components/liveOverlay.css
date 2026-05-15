@@ -6,6 +6,9 @@
   inset: 0;
   pointer-events: none;
   z-index: 10;
+  /* container-type lets nested overlays size with cqw, so the same rules
+     produce identical proportions in the live venue and the dashboard preview. */
+  container-type: size;
 }
 
 .live-overlay-card {
@@ -17,40 +20,85 @@
   inset: 0;
 }
 
+.live-overlay-card.live-overlay-pos-top-left      { top: 6cqh; left: 6cqw; right: auto; bottom: auto; inset: auto; }
+.live-overlay-card.live-overlay-pos-top-center    { top: 6cqh; left: 50%; right: auto; bottom: auto; inset: auto; transform: translateX(-50%); }
+.live-overlay-card.live-overlay-pos-top-right     { top: 6cqh; right: 6cqw; left: auto; bottom: auto; inset: auto; }
+.live-overlay-card.live-overlay-pos-middle-left   { top: 50%; left: 6cqw; right: auto; bottom: auto; inset: auto; transform: translateY(-50%); }
+.live-overlay-card.live-overlay-pos-middle-center { top: 50%; left: 50%; right: auto; bottom: auto; inset: auto; transform: translate(-50%, -50%); }
+.live-overlay-card.live-overlay-pos-middle-right  { top: 50%; right: 6cqw; left: auto; bottom: auto; inset: auto; transform: translateY(-50%); }
+.live-overlay-card.live-overlay-pos-bottom-left   { bottom: 8cqh; left: 6cqw; right: auto; top: auto; inset: auto; }
+.live-overlay-card.live-overlay-pos-bottom-center { bottom: 8cqh; left: 50%; right: auto; top: auto; inset: auto; transform: translateX(-50%); }
+.live-overlay-card.live-overlay-pos-bottom-right  { bottom: 8cqh; right: 6cqw; left: auto; top: auto; inset: auto; }
+
 .live-overlay-speaker,
 .live-overlay-text {
-  position: absolute;
-  left: 6%;
-  right: 6%;
-  bottom: 8%;
-  padding: 24px 32px;
-  background: rgba(20, 20, 24, 0.78);
-  border-left: 3px solid var(--color-accent);
-  backdrop-filter: blur(8px);
-  border-radius: 8px;
+  padding: 2.4cqw 3cqw;
+  background: rgba(28, 28, 34, 0.82);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-radius: 2px;
+  box-shadow: 0 1cqw 3cqw rgba(0, 0, 0, 0.55);
+  max-width: min(60cqw, 920px);
+}
+
+.live-overlay-speaker {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.2cqw;
+}
+
+.live-overlay-speaker-title {
+  font-family: 'DM Serif Display', serif;
+  font-style: italic;
+  font-size: 3.2cqw;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: #c07fd4;
+  line-height: 1;
 }
 
 .live-overlay-speaker-name {
-  font-size: clamp(28px, 4vw, 56px);
-  font-weight: 600;
-  line-height: 1.1;
-}
-.live-overlay-speaker-role {
-  margin-top: 8px;
-  font-size: clamp(16px, 1.8vw, 24px);
-  color: var(--color-fg-secondary);
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 5.6cqw;
   font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f0eaf5;
+  line-height: 1;
+}
+
+.live-overlay-speaker-rule {
+  width: clamp(60px, 14cqw, 200px);
+  height: 1px;
+  background: rgba(192, 127, 212, 0.45);
+}
+
+.live-overlay-speaker-role {
+  font-family: 'Space Mono', monospace;
+  font-weight: 400;
+  font-size: 1.4cqw;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(240, 234, 245, 0.65);
+  line-height: 1.3;
 }
 
 .live-overlay-text-1 {
-  font-size: clamp(28px, 4vw, 56px);
-  font-weight: 600;
-  line-height: 1.15;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 4cqw;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1.1;
 }
 .live-overlay-text-2 {
-  margin-top: 8px;
-  font-size: clamp(18px, 2vw, 28px);
-  color: var(--color-fg-secondary);
+  margin-top: 1cqw;
+  font-family: 'Space Mono', monospace;
+  font-size: 1.6cqw;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(240, 234, 245, 0.65);
 }
 
 .live-overlay-logo {

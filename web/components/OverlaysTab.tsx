@@ -7,6 +7,7 @@ import type {
   OverlayAnimation,
   OverlayType,
   SpeakerCardContent,
+  TextCardPosition,
   TextOverlayContent,
   ImageLogoContent,
 } from '@vibes/shared/types';
@@ -15,12 +16,19 @@ import { ORG_ID } from '@/lib/constants';
 import { Button } from './Button';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
+import { LiveOverlayLayer } from './LiveOverlayLayer';
 
 const TYPE_LABELS: Record<OverlayType, string> = {
-  speaker_card: 'Speaker card',
+  speaker_card: 'Text card',
   text: 'Text',
   image_logo: 'Logo image',
 };
+
+const POSITIONS: TextCardPosition[] = [
+  'top-left', 'top-center', 'top-right',
+  'middle-left', 'middle-center', 'middle-right',
+  'bottom-left', 'bottom-center', 'bottom-right',
+];
 
 const ANIMATION_LABELS: Record<OverlayAnimation, string> = {
   fade: 'Fade',
@@ -249,6 +257,8 @@ function OverlayEditDialog({
   // Type-specific content state
   const [speakerName, setSpeakerName] = useState('');
   const [speakerRole, setSpeakerRole] = useState('');
+  const [speakerTitle, setSpeakerTitle] = useState('');
+  const [speakerPosition, setSpeakerPosition] = useState<TextCardPosition>('bottom-center');
   const [textLine1, setTextLine1] = useState('');
   const [textLine2, setTextLine2] = useState('');
   const [logoUrl, setLogoUrl] = useState('');
@@ -269,6 +279,8 @@ function OverlayEditDialog({
         const c = editing.content as SpeakerCardContent;
         setSpeakerName(c.name);
         setSpeakerRole(c.role ?? '');
+        setSpeakerTitle(c.title ?? '');
+        setSpeakerPosition(c.position ?? 'bottom-center');
       } else if (editing.type === 'text') {
         const c = editing.content as TextOverlayContent;
         setTextLine1(c.lines[0] ?? '');
@@ -285,6 +297,8 @@ function OverlayEditDialog({
       setDurationSeconds(6);
       setSpeakerName('');
       setSpeakerRole('');
+      setSpeakerTitle('');
+      setSpeakerPosition('bottom-center');
       setTextLine1('');
       setTextLine2('');
       setLogoUrl('');
@@ -316,8 +330,16 @@ function OverlayEditDialog({
 
   function contentForSubmit(): unknown | null {
     if (type === 'speaker_card') {
-      if (!speakerName.trim()) return null;
-      return { name: speakerName.trim(), role: speakerRole.trim() || undefined };
+      const header = speakerName.trim();
+      const title = speakerTitle.trim();
+      const body = speakerRole.trim();
+      if (!header && !title && !body) return null;
+      return {
+        name: header,
+        role: body || undefined,
+        title: title || undefined,
+        position: speakerPosition,
+      };
     }
     if (type === 'text') {
       const lines = [textLine1.trim(), textLine2.trim()].filter(Boolean);
@@ -420,26 +442,67 @@ function OverlayEditDialog({
 
         {type === 'speaker_card' && (
           <div className="flex flex-col gap-3">
+            <TextCardPreview
+              title={speakerTitle}
+              header={speakerName}
+              body={speakerRole}
+              position={speakerPosition}
+              animation={animation}
+            />
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-fg-primary">Speaker name</span>
+              <span className="text-sm font-medium text-fg-primary">
+                Title <span className="text-fg-tertiary">(DM Serif italic, purple)</span>
+              </span>
+              <input
+                type="text"
+                value={speakerTitle}
+                onChange={(e) => setSpeakerTitle(e.target.value)}
+                placeholder="The future of"
+                className="rounded-md border border-border bg-bg-base px-3 py-3 text-base text-fg-primary placeholder:text-fg-tertiary"
+              />
+            </label>
+            <label className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-fg-primary">
+                Header <span className="text-fg-tertiary">(Bebas Neue, large)</span>
+              </span>
               <input
                 type="text"
                 value={speakerName}
                 onChange={(e) => setSpeakerName(e.target.value)}
-                placeholder="Maya Chen"
+                placeholder="MAYA CHEN"
                 className="rounded-md border border-border bg-bg-base px-3 py-3 text-base text-fg-primary placeholder:text-fg-tertiary"
               />
             </label>
             <label className="flex flex-col gap-2">
-              <span className="text-sm font-medium text-fg-primary">Role / affiliation</span>
+              <span className="text-sm font-medium text-fg-primary">
+                Body <span className="text-fg-tertiary">(Space Mono, small caps)</span>
+              </span>
               <input
                 type="text"
                 value={speakerRole}
                 onChange={(e) => setSpeakerRole(e.target.value)}
-                placeholder="Designer, NYC Design Week"
+                placeholder="Designer · NYC Design Week"
                 className="rounded-md border border-border bg-bg-base px-3 py-3 text-base text-fg-primary placeholder:text-fg-tertiary"
               />
             </label>
+            <div className="flex flex-col gap-2">
+              <span className="text-sm font-medium text-fg-primary">Position</span>
+              <div className="grid grid-cols-3 gap-1.5 max-w-[180px]">
+                {POSITIONS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setSpeakerPosition(p)}
+                    aria-label={p}
+                    className={
+                      p === speakerPosition
+                        ? 'aspect-square rounded-md border border-accent bg-accent-soft'
+                        : 'aspect-square rounded-md border border-border bg-bg-base hover:border-fg-tertiary'
+                    }
+                  />
+                ))}
+              </div>
+            </div>
           </div>
         )}
 
@@ -538,5 +601,45 @@ function OverlayEditDialog({
         </label>
       </div>
     </Modal>
+  );
+}
+
+function TextCardPreview({
+  title,
+  header,
+  body,
+  position,
+  animation,
+}: {
+  title: string;
+  header: string;
+  body: string;
+  position: TextCardPosition;
+  animation: OverlayAnimation;
+}) {
+  const overlay: Overlay = {
+    id: 'preview',
+    orgId: ORG_ID,
+    name: 'preview',
+    type: 'speaker_card',
+    content: {
+      name: header,
+      role: body || undefined,
+      title: title || undefined,
+      position,
+    },
+    animation,
+    durationMs: 60_000,
+  };
+  // Re-mount whenever position/animation change so the enter animation re-runs
+  // and the operator can confirm the motion/placement at a glance.
+  const previewKey = `${position}-${animation}`;
+  return (
+    <div className="flex flex-col gap-1">
+      <span className="text-xs uppercase tracking-wider text-fg-tertiary">Preview</span>
+      <div className="relative aspect-video w-full overflow-hidden rounded-md border border-border bg-black">
+        <LiveOverlayLayer key={previewKey} overlay={overlay} startedAt={new Date()} />
+      </div>
+    </div>
   );
 }

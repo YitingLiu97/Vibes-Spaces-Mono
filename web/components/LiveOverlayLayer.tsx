@@ -55,14 +55,26 @@ export function LiveOverlayLayer({ overlay, startedAt }: Props) {
 
   const stateClass = phase === 'entering' || phase === 'holding' ? 'enter' : 'exit';
   const animClass = `anim-${rendered.animation}`;
+  const posClass = positionClassFor(rendered);
 
   return (
     <div className="live-overlay-root">
-      <div className={`live-overlay-card ${animClass} ${stateClass}`} aria-live="polite">
+      <div className={`live-overlay-card ${posClass} ${animClass} ${stateClass}`} aria-live="polite">
         <Contents overlay={rendered} />
       </div>
     </div>
   );
+}
+
+function positionClassFor(overlay: Overlay): string {
+  if (overlay.type === 'speaker_card') {
+    const c = overlay.content as SpeakerCardContent;
+    return `live-overlay-pos-${c.position ?? 'bottom-center'}`;
+  }
+  if (overlay.type === 'text') {
+    return 'live-overlay-pos-bottom-center';
+  }
+  return '';
 }
 
 function Contents({ overlay }: { overlay: Overlay }) {
@@ -70,8 +82,14 @@ function Contents({ overlay }: { overlay: Overlay }) {
     const c = overlay.content as SpeakerCardContent;
     return (
       <div className="live-overlay-speaker">
-        <div className="live-overlay-speaker-name">{c.name}</div>
-        {c.role && <div className="live-overlay-speaker-role">{c.role}</div>}
+        {c.title && <div className="live-overlay-speaker-title">{c.title}</div>}
+        {c.name && <div className="live-overlay-speaker-name">{c.name}</div>}
+        {c.role && (
+          <>
+            {c.name && <div className="live-overlay-speaker-rule" />}
+            <div className="live-overlay-speaker-role">{c.role}</div>
+          </>
+        )}
       </div>
     );
   }
