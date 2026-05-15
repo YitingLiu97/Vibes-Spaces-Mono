@@ -128,9 +128,12 @@ export function ScenePlayer({
       <CompositionLayer composition={sceneToPlay?.composition ?? null} />
       <OverlayLayer overlay={overlay} startedAt={overlayStartedAt} />
       {attributionVisible && (
-        <div className="vibes-wordmark" aria-hidden>
-          Vibes
-        </div>
+        <img
+          className="vibes-wordmark"
+          src="https://www.futureofnycdesign.com/public/logos/vibes.png"
+          alt=""
+          aria-hidden
+        />
       )}
     </div>
   );
