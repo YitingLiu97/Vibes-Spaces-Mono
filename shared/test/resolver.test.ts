@@ -222,8 +222,10 @@ describe('resolver', () => {
     expect(slot.queueItemId).toBeNull();
   });
 
-  it('queue restarts at items[0] when the cursor item was deleted', () => {
+  it('queue ends when the cursor item was deleted', () => {
     // cursor points to q-gone, which isn't in the list anymore.
+    // Deleting the playing item is an explicit "get this off" action —
+    // we don't silently jump back to items[0]; we fall through.
     const now = new Date('2026-05-16T12:00:00');
     const startedAt = new Date('2026-05-16T11:59:00').toISOString();
     const slot = resolve(
@@ -235,7 +237,9 @@ describe('resolver', () => {
         qItem({ id: 'q-b', position: 1, sceneId: 'b' }),
       ],
     );
-    expect(slot.queueItemId).toBe('q-a');
+    expect(slot.queueItemId).toBeNull();
+    expect(slot.sceneId).toBe('default-scene');
+    expect(slot.sourceEntryId).toBe('default');
   });
 
   it('queue stays put when startedAt is in the future (clock skew)', () => {

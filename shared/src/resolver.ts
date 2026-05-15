@@ -42,9 +42,12 @@ function queueSlot(item: QueueItem): ResolvedSlot {
  * Behavior chosen by the operator:
  *   1. No active cursor (queueCurrentItemId or queueStartedAt is null) and
  *      items exist → auto-start at items[0].
- *   2. Cursor item was deleted (id not found in current list) → restart
- *      from items[0]. (Postgres FK ON DELETE SET NULL typically clears
- *      the cursor automatically, sending us through rule 1 instead.)
+ *   2. Cursor item was deleted (id not found in current list) → treat the
+ *      queue as ended. Removing the currently-playing item is an explicit
+ *      operator action ("get this off"); silently restarting from the top
+ *      would surprise them. Falls through to schedule/default. (Postgres
+ *      FK ON DELETE SET NULL clears the cursor too, sending us through
+ *      rule 1 instead next time around.)
  *   3. Late catch-up: if elapsed-since-startedAt is way past the current
  *      item's duration, sum durations forward from the cursor and jump
  *      to whichever item the elapsed time has caught up to. Treats the
@@ -68,10 +71,10 @@ function pickQueueItem(
     return sortedItems[0];
   }
 
-  // Rule 2: cursor item is gone → restart from the top.
+  // Rule 2: cursor item is gone → treat queue as ended (fall through).
   const cursorIdx = sortedItems.findIndex((i) => i.id === settings.queueCurrentItemId);
   if (cursorIdx === -1) {
-    return sortedItems[0];
+    return null;
   }
 
   // Clock-skew defense: a startedAt in the future would otherwise produce
