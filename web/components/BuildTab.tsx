@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Film, Sparkles } from 'lucide-react';
-import type { Segment, SceneComposition, SegmentSpeakerRef } from '@vibes/shared/types';
+import type { Segment, SceneComposition, SegmentSpeakerRef, Speaker } from '@vibes/shared/types';
+import { buildSegmentComposition } from '@vibes/shared/buildSegmentComposition';
 import { getSupabase } from '@/lib/supabase';
 import { ORG_ID, STORAGE_BUCKET } from '@/lib/constants';
 import { Button } from './Button';
@@ -19,6 +20,7 @@ const VIDEO_EXT = /\.(mp4|webm|mov|m4v)$/i;
 export function BuildTab() {
   const [backdrops, setBackdrops] = useState<Backdrop[]>([]);
   const [segments, setSegments] = useState<Segment[]>([]);
+  const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const [loading, setLoading] = useState(true);
 
   const [chosenBackdrop, setChosenBackdrop] = useState<Backdrop | null>(null);
@@ -31,7 +33,7 @@ export function BuildTab() {
 
   const load = useCallback(async () => {
     const supabase = getSupabase();
-    const [filesRes, segRes, ssRes] = await Promise.all([
+    const [filesRes, segRes, ssRes, spkRes] = await Promise.all([
       supabase.storage.from(STORAGE_BUCKET).list(ORG_ID, {
         sortBy: { column: 'updated_at', order: 'desc' },
         limit: 200,
@@ -45,6 +47,7 @@ export function BuildTab() {
         .from('segment_speakers')
         .select('segment_id, speaker_id, role, position')
         .order('position', { ascending: true }),
+      supabase.from('speakers').select('*').eq('org_id', ORG_ID),
     ]);
     const drops: Backdrop[] = (filesRes.data ?? [])
       .filter((f) => VIDEO_EXT.test(f.name))
@@ -74,6 +77,14 @@ export function BuildTab() {
     }));
     setBackdrops(drops);
     setSegments(segs);
+    setSpeakers(
+      (spkRes.data ?? []).map((s) => ({
+        id: s.id,
+        orgId: s.org_id,
+        name: s.name,
+        photoUrl: s.photo_url ?? null,
+      })),
+    );
     setLoading(false);
   }, []);
 
@@ -81,21 +92,29 @@ export function BuildTab() {
     load().catch(() => setLoading(false));
   }, [load]);
 
+  // Always rebuild from the current segment + speakers so the preview reflects
+  // the latest composition shape (existing rows can have stale snapshots).
+  const baseComposition: SceneComposition | null = useMemo(() => {
+    if (!chosenSegment) return null;
+    return buildSegmentComposition(chosenSegment, speakers);
+  }, [chosenSegment, speakers]);
+
   // Auto-prefill caption + scene name when segment changes.
   useEffect(() => {
     if (!chosenSegment) return;
-    setCaptionDraft(chosenSegment.composition?.caption?.text ?? chosenSegment.title);
+    setCaptionDraft(baseComposition?.caption?.text ?? chosenSegment.title);
     setSceneName((prev) => prev || chosenSegment.title);
   }, [chosenSegment?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const previewComposition: SceneComposition | null = useMemo(() => {
-    if (!chosenSegment?.composition) return null;
-    const c = chosenSegment.composition;
+    if (!baseComposition) return null;
     return {
-      ...c,
-      caption: c.caption ? { ...c.caption, text: captionDraft } : null,
+      ...baseComposition,
+      caption: baseComposition.caption
+        ? { ...baseComposition.caption, text: captionDraft }
+        : null,
     };
-  }, [chosenSegment, captionDraft]);
+  }, [baseComposition, captionDraft]);
 
   const canCreate = !!chosenBackdrop && !!chosenSegment && !creating;
 

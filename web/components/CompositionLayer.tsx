@@ -1,6 +1,7 @@
 'use client';
 
 import type { SceneComposition } from '@vibes/shared/types';
+import { SpeakerCluster } from './SpeakerCluster';
 
 interface Props {
   composition: SceneComposition | null;
@@ -9,7 +10,7 @@ interface Props {
 export function CompositionLayer({ composition }: Props) {
   if (!composition) return null;
 
-  const { zones, caption, tint, accent } = composition;
+  const { zones, caption, tint, accent, speakerCluster } = composition;
   const accentColor = accent ?? 'var(--color-accent)';
 
   return (
@@ -28,6 +29,11 @@ export function CompositionLayer({ composition }: Props) {
         <Zone name="center" zone={zones.center} />
         <Zone name="footer" zone={zones.footer} />
       </div>
+      {speakerCluster && speakerCluster.items.length > 0 && (
+        <div className="composition-cluster-layer">
+          <SpeakerCluster cluster={speakerCluster} />
+        </div>
+      )}
       {caption && caption.text && (
         <div className="composition-caption-layer">
           <div

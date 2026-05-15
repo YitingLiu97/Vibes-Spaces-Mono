@@ -1,6 +1,8 @@
 /* Segments tab — freeform speaker clusters. Each segment is a card with an
    absolute-positioned cluster of circular headshots. The moderator (if any)
-   sits at the apex slightly larger; panel speakers fan out below on an arc. */
+   sits at the apex slightly larger; panel speakers fan out below on an arc.
+   The same .speaker-cluster / .speaker-node styles are reused inside the
+   scene composition layer so the design appears identically over the video. */
 
 .segment-card {
   display: flex;
@@ -70,6 +72,13 @@
   font-size: 13px;
 }
 
+/* ── Shared speaker cluster (also used inside composition layer) ──────── */
+
+.speaker-cluster {
+  position: absolute;
+  inset: 0;
+}
+
 .speaker-node {
   position: absolute;
   display: flex;
@@ -119,7 +128,6 @@
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--color-fg-primary);
-  /* counter-rotate the wrapper so name reads upright even when node is rotated */
   text-align: center;
   max-width: 100px;
   line-height: 1.2;

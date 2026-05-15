@@ -22,6 +22,21 @@ export interface SceneTint {
   opacity: number;
 }
 
+// A circular speaker cluster overlay — moderator at the apex, panelists on a
+// gentle arc below. The data is self-contained (photo URL + display name)
+// so the composition JSON is portable without needing to re-fetch speakers.
+export interface SceneSpeakerClusterItem {
+  photoUrl: string | null;
+  name: string;
+  role: 'speaker' | 'moderator';
+  // stable key used to deterministically jitter rotation/offset
+  key: string;
+}
+
+export interface SceneSpeakerCluster {
+  items: SceneSpeakerClusterItem[];
+}
+
 export interface SceneComposition {
   zones: {
     header: SceneZone;
@@ -31,6 +46,9 @@ export interface SceneComposition {
   caption: SceneCaption | null;
   tint: SceneTint | null;
   accent: string | null;
+  // When present, renders the circular speaker arc on top of the video.
+  // Optional + nullable so existing rows (and EMPTY_COMPOSITION) stay valid.
+  speakerCluster?: SceneSpeakerCluster | null;
 }
 
 export interface Scene {

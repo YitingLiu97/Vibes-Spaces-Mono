@@ -126,6 +126,93 @@
   pointer-events: none;
 }
 
+/* ── Speaker cluster overlay ────────────────────────────────────────────── */
+/* Renders the branded headshot arc on top of the scene video. Sizes use vw
+   so the cluster scales with the venue display (no container-type needed on
+   .player-root). The dashboard web preview reuses the same class names but
+   pulls fixed-px sizes from segments.css instead. */
+
+.composition-cluster-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.speaker-cluster {
+  position: absolute;
+  inset: 0;
+}
+
+.speaker-node {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6vw;
+}
+
+.speaker-node-photo {
+  width: 8vw;
+  height: 8vw;
+  border-radius: 50%;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.4);
+  border: 2px solid rgba(192, 127, 212, 0.6);
+  box-shadow: 0 0.6vw 1.8vw rgba(0, 0, 0, 0.45);
+}
+
+.speaker-node-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.speaker-node-initials {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Bebas Neue', sans-serif;
+  font-size: 2.6vw;
+  letter-spacing: 0.04em;
+  color: #f0eaf5;
+  text-transform: uppercase;
+}
+
+.speaker-node-name {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.1vw;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #f0eaf5;
+  text-align: center;
+  max-width: 14vw;
+  line-height: 1.2;
+  text-shadow: 0 0.2vw 0.6vw rgba(0, 0, 0, 0.6);
+}
+
+.speaker-node-tag {
+  font-family: 'Space Mono', monospace;
+  font-size: 0.9vw;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #c07fd4;
+  padding: 0.2vw 0.6vw;
+  border: 1px solid rgba(192, 127, 212, 0.5);
+  border-radius: 999px;
+  line-height: 1;
+}
+
+.speaker-node--moderator .speaker-node-photo {
+  width: 9.6vw;
+  height: 9.6vw;
+  border-color: #c07fd4;
+  box-shadow: 0 0.8vw 2.8vw rgba(192, 127, 212, 0.35);
+}
+
 /* ── Overlay layer ──────────────────────────────────────────────────────── */
 
 .overlay-root {

@@ -9,23 +9,9 @@ import { ORG_ID } from '@/lib/constants';
 import { Button } from './Button';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
+import { SpeakerCluster } from './SpeakerCluster';
 
 const SPEAKER_PHOTOS_BUCKET = 'speaker-photos';
-
-// Deterministic small offset/rotation per speaker id — gives the cluster an
-// organic feel without re-shuffling on every render.
-function hash(id: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < id.length; i++) {
-    h ^= id.charCodeAt(i);
-    h = (h * 16777619) >>> 0;
-  }
-  return h;
-}
-function jitter(id: string, salt: string, range: number): number {
-  const h = hash(id + salt);
-  return ((h % 1000) / 1000 - 0.5) * 2 * range;
-}
 
 export function SegmentsTab() {
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -90,12 +76,6 @@ export function SegmentsTab() {
     refresh().catch(() => setLoading(false));
   }, [refresh]);
 
-  const speakersById = useMemo(() => {
-    const m = new Map<string, Speaker>();
-    for (const s of speakers) m.set(s.id, s);
-    return m;
-  }, [speakers]);
-
   async function deleteSegment(seg: Segment) {
     if (!confirm(`Delete “${seg.title}”?`)) return;
     setSegments((prev) => prev.filter((s) => s.id !== seg.id));
@@ -154,7 +134,7 @@ export function SegmentsTab() {
             <SegmentCluster
               key={seg.id}
               segment={seg}
-              speakersById={speakersById}
+              allSpeakers={speakers}
               onEdit={() => {
                 setEditing(seg);
                 setEditorOpen(true);
@@ -183,21 +163,22 @@ export function SegmentsTab() {
 
 function SegmentCluster({
   segment,
-  speakersById,
+  allSpeakers,
   onEdit,
   onDelete,
 }: {
   segment: Segment;
-  speakersById: Map<string, Speaker>;
+  allSpeakers: Speaker[];
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const moderator = segment.speakers.find((s) => s.role === 'moderator');
-  const panel = segment.speakers.filter((s) => s.role === 'speaker');
-  // Arc placement: 0° = top, sweep -55° to +55° across panel speakers.
-  const sweep = panel.length === 1 ? 0 : 110;
-  const start = panel.length === 1 ? 0 : -sweep / 2;
-  const step = panel.length <= 1 ? 0 : sweep / (panel.length - 1);
+  // Recompute the cluster on render so existing segments — saved before the
+  // composition shape changed — show the new circular look without needing
+  // to be re-saved.
+  const composition = useMemo(
+    () => buildSegmentComposition(segment, allSpeakers),
+    [segment, allSpeakers],
+  );
 
   return (
     <li className="segment-card">
@@ -217,79 +198,13 @@ function SegmentCluster({
       </div>
 
       <div className="segment-cluster">
-        {moderator && (
-          <SpeakerNode
-            speaker={speakersById.get(moderator.speakerId)}
-            isModerator
-            x={50}
-            y={8}
-            rotate={jitter(moderator.speakerId, 'r', 3)}
-          />
-        )}
-        {panel.map((s, i) => {
-          const angleDeg = start + step * i;
-          const angleRad = (angleDeg * Math.PI) / 180;
-          // Anchor panel arc just below the moderator; centered horizontally.
-          const cx = 50;
-          const cy = moderator ? 78 : 55;
-          const rx = panel.length <= 2 ? 22 : 32;
-          const ry = panel.length <= 2 ? 10 : 14;
-          const x = cx + Math.sin(angleRad) * rx + jitter(s.speakerId, 'x', 1.5);
-          const y = cy - Math.cos(angleRad) * ry + jitter(s.speakerId, 'y', 2);
-          return (
-            <SpeakerNode
-              key={s.speakerId}
-              speaker={speakersById.get(s.speakerId)}
-              x={x}
-              y={y}
-              rotate={jitter(s.speakerId, 'r', 4)}
-            />
-          );
-        })}
-        {segment.speakers.length === 0 && (
+        {composition.speakerCluster && composition.speakerCluster.items.length > 0 ? (
+          <SpeakerCluster cluster={composition.speakerCluster} />
+        ) : (
           <div className="segment-cluster-empty">No speakers yet — edit to add some.</div>
         )}
       </div>
     </li>
-  );
-}
-
-function SpeakerNode({
-  speaker,
-  isModerator,
-  x,
-  y,
-  rotate,
-}: {
-  speaker: Speaker | undefined;
-  isModerator?: boolean;
-  x: number;
-  y: number;
-  rotate: number;
-}) {
-  if (!speaker) return null;
-  return (
-    <div
-      className={`speaker-node${isModerator ? ' speaker-node--moderator' : ''}`}
-      style={{
-        left: `${x}%`,
-        top: `${y}%`,
-        transform: `translate(-50%, -50%) rotate(${rotate}deg)`,
-      }}
-    >
-      <div className="speaker-node-photo">
-        {speaker.photoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={speaker.photoUrl} alt="" onError={(e) => {
-            (e.currentTarget as HTMLImageElement).style.display = 'none';
-          }} />
-        ) : (
-          <div className="speaker-node-initials">{initials(speaker.name)}</div>
-        )}
-      </div>
-      <div className="speaker-node-name">{speaker.name}</div>
-      {isModerator && <div className="speaker-node-tag">Moderator</div>}
-    </div>
   );
 }
 

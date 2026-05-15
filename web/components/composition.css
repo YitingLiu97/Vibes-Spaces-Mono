@@ -126,3 +126,13 @@
   z-index: 6;
   pointer-events: none;
 }
+
+/* Speaker cluster overlay — sits above the tint/zones, below the caption,
+   so the branded headshot arc reads on top of the video. Uses the same
+   .speaker-cluster / .speaker-node styles defined in segments.css. */
+.composition-cluster-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { Play, X } from 'lucide-react';
-import type { Scene, SceneComposition } from '@vibes/shared/types';
+import type { Scene, SceneComposition, Segment, SegmentSpeakerRef, Speaker } from '@vibes/shared/types';
 import { EMPTY_COMPOSITION } from '@vibes/shared/types';
+import { buildSegmentComposition } from '@vibes/shared/buildSegmentComposition';
 import { getSupabase } from '@/lib/supabase';
 import { ORG_ID } from '@/lib/constants';
 import { Button } from './Button';
@@ -24,11 +25,85 @@ const cloneComposition = (c: SceneComposition | null): SceneComposition => {
 export function ComposeDialog({ scene, onClose, onSaved }: Props) {
   const [comp, setComp] = useState<SceneComposition>(() => cloneComposition(scene?.composition ?? null));
   const [saving, setSaving] = useState(false);
+  const [segments, setSegments] = useState<Segment[]>([]);
+  const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
     if (scene) setComp(cloneComposition(scene.composition));
   }, [scene]);
+
+  useEffect(() => {
+    if (!scene) return;
+    let cancelled = false;
+    (async () => {
+      const supabase = getSupabase();
+      const [segRes, ssRes, spkRes] = await Promise.all([
+        supabase
+          .from('segments')
+          .select('*')
+          .eq('org_id', ORG_ID)
+          .order('position', { ascending: true }),
+        supabase
+          .from('segment_speakers')
+          .select('segment_id, speaker_id, role, position')
+          .order('position', { ascending: true }),
+        supabase.from('speakers').select('*').eq('org_id', ORG_ID),
+      ]);
+      if (cancelled) return;
+      const byId = new Map<string, SegmentSpeakerRef[]>();
+      for (const row of ssRes.data ?? []) {
+        const arr = byId.get(row.segment_id) ?? [];
+        arr.push({
+          speakerId: row.speaker_id,
+          role: row.role as 'speaker' | 'moderator',
+          position: row.position ?? 0,
+        });
+        byId.set(row.segment_id, arr);
+      }
+      setSegments(
+        (segRes.data ?? []).map((r) => ({
+          id: r.id,
+          orgId: r.org_id,
+          title: r.title,
+          subtitle: r.subtitle,
+          position: r.position ?? 0,
+          speakers: (byId.get(r.id) ?? []).sort((a, b) => a.position - b.position),
+          composition: r.composition ?? null,
+        })),
+      );
+      setSpeakers(
+        (spkRes.data ?? []).map((s) => ({
+          id: s.id,
+          orgId: s.org_id,
+          name: s.name,
+          photoUrl: s.photo_url ?? null,
+        })),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [scene]);
+
+  const applySegment = useCallback(
+    (segmentId: string) => {
+      const seg = segments.find((s) => s.id === segmentId);
+      if (!seg) return;
+      // Recompute from current speakers so the cluster picks up the latest
+      // photos/names, not whatever was snapshotted onto the segment row.
+      const built = buildSegmentComposition(seg, speakers);
+      const hasContent =
+        !!comp.caption?.text ||
+        !!comp.zones.header.imageUrl ||
+        !!comp.zones.center.imageUrl ||
+        !!comp.zones.footer.imageUrl ||
+        (comp.speakerCluster?.items.length ?? 0) > 0;
+      if (hasContent && !confirm('Replace the current composition with this segment?')) return;
+      setComp(cloneComposition(built));
+    },
+    [segments, speakers, comp],
+  );
 
   useEffect(() => {
     if (!scene) return;
@@ -207,6 +282,35 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
       <div className="flex flex-1 min-h-0 flex-col md:flex-row">
         {/* Sidebar */}
         <aside className="w-full md:w-[360px] border-b md:border-b-0 md:border-r border-border-subtle overflow-y-auto p-5 flex flex-col gap-5">
+          <CollapsibleSection title="Apply segment" defaultOpen>
+            {segments.length === 0 ? (
+              <p className="text-xs text-fg-tertiary">
+                No segments yet — create one on the Segments tab.
+              </p>
+            ) : (
+              <>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    if (e.target.value) applySegment(e.target.value);
+                    e.target.value = '';
+                  }}
+                  className="w-full rounded border border-border bg-bg-base px-3 py-2 text-sm text-fg-primary"
+                >
+                  <option value="">— pick a segment —</option>
+                  {segments.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.subtitle ? `${s.subtitle} · ${s.title}` : s.title}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-fg-tertiary">
+                  Replaces zones, caption, and tint with the segment’s overlay. You can tweak after.
+                </p>
+              </>
+            )}
+          </CollapsibleSection>
+
           <CollapsibleSection title="Header image · top" defaultOpen>
             <ZoneControls
               zone="header"
