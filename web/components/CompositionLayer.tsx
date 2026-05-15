@@ -34,9 +34,21 @@ export function CompositionLayer({ composition }: Props) {
             className={`composition-caption font-${caption.font}`}
             data-h={caption.h}
             data-v={caption.v}
-            style={{ fontSize: `${caption.size}px`, color: caption.color }}
+            style={{ color: caption.color }}
           >
-            {caption.font === 'bebas' ? caption.text.toUpperCase() : caption.text}
+            {(caption.font === 'bebas' ? caption.text.toUpperCase() : caption.text)
+              .split('\n')
+              .map((line, i) => (
+                <div
+                  key={i}
+                  className={i === 0 ? 'composition-caption-title' : 'composition-caption-body'}
+                  style={{
+                    fontSize: i === 0 ? `${caption.size}px` : `${Math.round(caption.size * 0.5)}px`,
+                  }}
+                >
+                  {line}
+                </div>
+              ))}
           </div>
         </div>
       )}
