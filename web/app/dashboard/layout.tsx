@@ -8,7 +8,9 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 const TABS = [
   { href: '/dashboard', label: 'Now' },
+  { href: '/dashboard/build', label: 'Build' },
   { href: '/dashboard/scenes', label: 'Scenes' },
+  { href: '/dashboard/segments', label: 'Segments' },
   { href: '/dashboard/overlays', label: 'Cards' },
   { href: '/dashboard/playlists', label: 'Playlists' },
   { href: '/dashboard/queue', label: 'Queue' },

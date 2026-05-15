@@ -118,9 +118,22 @@ export type OverlayPosition =
   | 'bottom-right'
   | 'center';
 
+export type TextCardPosition =
+  | 'top-left'
+  | 'top-center'
+  | 'top-right'
+  | 'middle-left'
+  | 'middle-center'
+  | 'middle-right'
+  | 'bottom-left'
+  | 'bottom-center'
+  | 'bottom-right';
+
 export interface SpeakerCardContent {
   name: string;
   role?: string;
+  title?: string;
+  position?: TextCardPosition;
 }
 
 export interface TextOverlayContent {
@@ -143,4 +156,29 @@ export interface Overlay {
   content: OverlayContent;
   animation: OverlayAnimation;
   durationMs: number;
+}
+
+export type SegmentSpeakerRole = 'speaker' | 'moderator';
+
+export interface Speaker {
+  id: string;
+  orgId: string;
+  name: string;
+  photoUrl: string | null;
+}
+
+export interface SegmentSpeakerRef {
+  speakerId: string;
+  role: SegmentSpeakerRole;
+  position: number;
+}
+
+export interface Segment {
+  id: string;
+  orgId: string;
+  title: string;
+  subtitle: string | null;
+  position: number;
+  speakers: SegmentSpeakerRef[];
+  composition: SceneComposition | null;
 }

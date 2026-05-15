@@ -10,7 +10,9 @@
     "./types": "./src/types.ts",
     "./resolver": "./src/resolver.ts",
     "./tokens": "./src/tokens.ts",
-    "./tokens.css": "./src/tokens.css"
+    "./tokens.css": "./src/tokens.css",
+    "./health": "./src/health.ts",
+    "./buildSegmentComposition": "./src/buildSegmentComposition.ts"
   },
   "scripts": {
     "test": "vitest run",
