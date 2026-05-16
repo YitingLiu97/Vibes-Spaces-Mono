@@ -43,6 +43,8 @@ begin;
 insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled, composition) values
 
 -- 1. Arrival + Registration (12:00–12:30) — no speakers
+-- Pre-event hold: FOND logo in center, no caption (the persistent
+-- /fixed/fond-header strip already carries the wordmark up top).
 ('aaaaaaaa-1111-1111-1111-000000000001'::uuid,
  '00000000-0000-0000-0000-000000000001',
  'Arrival + Registration',
@@ -51,16 +53,13 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
  '{
    "zones": {
      "header": {"imageUrl": null, "position": "center"},
-     "center": {"imageUrl": null, "position": "center"},
+     "center": {"imageUrl": "/logos/fond.svg", "position": "center"},
      "footer": {"imageUrl": null, "position": "center"}
    },
-   "caption": {
-     "text": "WELCOME TO\nFUTURE OF NYC DESIGN 2026\nRegistration is open — grab your badge",
-     "font": "bebas", "size": 64, "color": "#FFFFFF",
-     "h": "center", "v": "middle"
-   },
+   "caption": null,
    "tint": {"color": "#000000", "opacity": 0.45},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- 2. Welcome + Keynote (12:30–13:00) — C.J. Yeh, Christie Shin, Yiting Liu
@@ -81,7 +80,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "bottom"
    },
    "tint": {"color": "#000000", "opacity": 0.4},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- 3. Transition + Wonder Demo (13:00–13:15)
@@ -102,7 +102,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "middle"
    },
    "tint": {"color": "#000000", "opacity": 0.45},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- 4. Panel: Three Scales of NYC Design (14:00–14:45) — Siddiq, Shandy, Dotun (mod Yiting)
@@ -123,7 +124,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "bottom"
    },
    "tint": {"color": "#000000", "opacity": 0.4},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- 5. Live Portfolio Review (15:00–16:00) — Christie + CJ
@@ -144,7 +146,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "bottom"
    },
    "tint": {"color": "#000000", "opacity": 0.4},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- 6. Break + Vibes Installation (16:00–16:15)
@@ -165,7 +168,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "middle"
    },
    "tint": {"color": "#000000", "opacity": 0.45},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- 7. Lightning Talks (16:15–17:05) — Soo Yun, Lee-Sean, Mustafa, Michelle (4 speakers, text-only)
@@ -186,7 +190,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "middle"
    },
    "tint": {"color": "#000000", "opacity": 0.45},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- 8. Community Roundtable (17:20–18:10) — Chelsea, Cherie, Stacey, Shandy (4 speakers, text-only)
@@ -207,10 +212,13 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "middle"
    },
    "tint": {"color": "#000000", "opacity": 0.45},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
--- 9. Design Awards Ceremony + Live Pitches (18:25–19:00)
+-- 9. Design Awards Ceremony + Live Pitches (18:25–19:00) — Judges cluster
+-- Mirrors what the editor would produce by applying the "Design Awards
+-- Judges" segment (ffff-6): Craig, Jessica, Christine, CJ, Christie, Soo Yun.
 ('aaaaaaaa-1111-1111-1111-000000000009'::uuid,
  '00000000-0000-0000-0000-000000000001',
  'Design Awards Ceremony + Live Pitches',
@@ -223,12 +231,23 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "footer": {"imageUrl": null, "position": "center"}
    },
    "caption": {
-     "text": "DESIGN AWARDS CEREMONY\n+ Live Pitches",
-     "font": "bebas", "size": 64, "color": "#FFFFFF",
-     "h": "center", "v": "middle"
+     "text": "Judges\nDesign Awards Judges",
+     "font": "bebas", "size": 48, "color": "#F0EAF5",
+     "h": "center", "v": "bottom"
    },
-   "tint": {"color": "#000000", "opacity": 0.45},
-   "accent": null
+   "tint": {"color": "#000000", "opacity": 40},
+   "accent": null,
+   "branding": {"enabled": true},
+   "speakerCluster": {
+     "items": [
+       {"key":"eeeeeeee-5555-5555-5555-000000000017","name":"Craig Spaeth","role":"speaker","photoUrl":"https://www.futureofnycdesign.com/public/speakers/craig-spaeth.png"},
+       {"key":"eeeeeeee-5555-5555-5555-000000000018","name":"Jessica Moon","role":"speaker","photoUrl":"https://www.futureofnycdesign.com/public/speakers/jessica-moon.png"},
+       {"key":"eeeeeeee-5555-5555-5555-000000000019","name":"Christine Keeley","role":"speaker","photoUrl":"https://www.futureofnycdesign.com/public/speakers/christine-keeley.png"},
+       {"key":"eeeeeeee-5555-5555-5555-000000000002","name":"C.J. Yeh","role":"speaker","photoUrl":"https://www.futureofnycdesign.com/public/speakers/cj-yeh.png"},
+       {"key":"eeeeeeee-5555-5555-5555-000000000001","name":"Christie Shin","role":"speaker","photoUrl":"https://www.futureofnycdesign.com/public/speakers/christie-shin.png"},
+       {"key":"eeeeeeee-5555-5555-5555-000000000006","name":"Soo Yun Kim","role":"speaker","photoUrl":"https://www.futureofnycdesign.com/public/speakers/soo-yun-kim.jpg"}
+     ]
+   }
  }'::jsonb),
 
 -- 10. Closing Keynote (19:00–19:10) — Gazi Jarin (single speaker)
@@ -249,10 +268,14 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "bottom"
    },
    "tint": {"color": "#000000", "opacity": 0.4},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
--- 11. Award Ceremony + Reception (19:15–20:00)
+-- 11. Award Ceremony + Reception (19:15–20:00) — Sponsors thank-you cluster
+-- Closing slot: serif "thank you" sits up top, three sponsor logos cluster
+-- in the middle. Mirrors applying the "Sponsors" segment (ffff-8) but keeps
+-- the sentimental copy instead of the auto-built "Sponsored By\nSponsors".
 ('aaaaaaaa-1111-1111-1111-000000000011'::uuid,
  '00000000-0000-0000-0000-000000000001',
  'Award Ceremony + Reception',
@@ -265,12 +288,20 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "footer": {"imageUrl": null, "position": "center"}
    },
    "caption": {
-     "text": "AWARD CEREMONY + RECEPTION\nThank you for joining us\nFuture of NYC Design 2026",
-     "font": "bebas", "size": 56, "color": "#FFFFFF",
-     "h": "center", "v": "middle"
+     "text": "Sponsored By\nThank you for joining us",
+     "font": "serif", "size": 44, "color": "#F0EAF5",
+     "h": "center", "v": "top"
    },
-   "tint": {"color": "#000000", "opacity": 0.4},
-   "accent": null
+   "tint": {"color": "#000000", "opacity": 40},
+   "accent": null,
+   "branding": {"enabled": true},
+   "speakerCluster": {
+     "items": [
+       {"key":"dddddddd-7777-7777-7777-000000000005","name":"Figma","role":"speaker","photoUrl":"/logos/sponsors/Figma.png"},
+       {"key":"dddddddd-7777-7777-7777-000000000006","name":"Mobbin","role":"speaker","photoUrl":"/logos/sponsors/mobbin.svg"},
+       {"key":"dddddddd-7777-7777-7777-000000000007","name":"Wonder","role":"speaker","photoUrl":"/logos/sponsors/wonder.svg"}
+     ]
+   }
  }'::jsonb)
 
 on conflict (id) do nothing;
@@ -303,7 +334,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "bottom"
    },
    "tint": {"color": "#000000", "opacity": 0.55},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- Vision Brew Interactive
@@ -324,7 +356,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "bottom"
    },
    "tint": {"color": "#000000", "opacity": 0.55},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- Vibescape
@@ -345,7 +378,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "bottom"
    },
    "tint": {"color": "#000000", "opacity": 0.55},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb),
 
 -- 241 Members
@@ -366,7 +400,8 @@ insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled,
      "h": "center", "v": "bottom"
    },
    "tint": {"color": "#000000", "opacity": 0.55},
-   "accent": null
+   "accent": null,
+   "branding": {"enabled": true}
  }'::jsonb)
 
 on conflict (id) do nothing;
