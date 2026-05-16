@@ -13,6 +13,7 @@ import { ComposeDialog } from './ComposeDialog';
 import { CompositionLayer } from './CompositionLayer';
 import { ImportEventDialog } from './ImportEventDialog';
 import { ExportEventDialog } from './ExportEventDialog';
+import { useUndoHistory, type SceneRow } from '@/lib/undo-history';
 
 export function ScenesTab() {
   const [scenes, setScenes] = useState<Scene[]>([]);
@@ -24,6 +25,19 @@ export function ScenesTab() {
   const [forcedSceneId, setForcedSceneId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+  const { record, signal: historySignal } = useUndoHistory();
+
+  function sceneToRow(s: Scene): SceneRow {
+    return {
+      id: s.id,
+      org_id: ORG_ID,
+      name: s.name,
+      video_url: s.videoUrl,
+      hide_attribution: s.hideAttribution,
+      loop_enabled: s.loopEnabled,
+      composition: s.composition,
+    };
+  }
 
   function toggleSelected(id: string) {
     setSelectedIds((prev) => {
@@ -67,7 +81,9 @@ export function ScenesTab() {
 
   useEffect(() => {
     refresh().catch(() => setLoading(false));
-  }, [refresh]);
+    // historySignal bumps on undo / redo so the scene grid reflects the
+    // reverted state (composition, video URL, deletes) without a manual reload.
+  }, [refresh, historySignal]);
 
   async function forcePlay(scene: Scene) {
     if (!confirm(`Play “${scene.name}” now until you resume the schedule?`)) return;
@@ -99,7 +115,7 @@ export function ScenesTab() {
   }
 
   async function deleteScene(scene: Scene) {
-    if (!confirm(`Delete “${scene.name}”? This can’t be undone.`)) return;
+    if (!confirm(`Delete “${scene.name}”?`)) return;
     setScenes((prev) => prev.filter((s) => s.id !== scene.id));
     setSelectedIds((prev) => {
       if (!prev.has(scene.id)) return prev;
@@ -110,6 +126,11 @@ export function ScenesTab() {
     try {
       await getSupabase().from('scenes').delete().eq('id', scene.id);
       toast({ title: 'Scene deleted', description: scene.name });
+      record({
+        kind: 'scene.delete',
+        description: `Delete scene · ${scene.name}`,
+        row: sceneToRow(scene),
+      });
     } catch {
       toast({
         variant: 'destructive',
@@ -123,12 +144,24 @@ export function ScenesTab() {
   async function deleteSelected() {
     const ids = Array.from(selectedIds);
     if (ids.length === 0) return;
-    if (!confirm(`Delete ${ids.length} scene${ids.length === 1 ? '' : 's'}? This can’t be undone.`)) return;
+    if (!confirm(`Delete ${ids.length} scene${ids.length === 1 ? '' : 's'}?`)) return;
+    const targets = scenes.filter((s) => selectedIds.has(s.id));
     setScenes((prev) => prev.filter((s) => !selectedIds.has(s.id)));
     setSelectedIds(new Set());
     try {
       await getSupabase().from('scenes').delete().in('id', ids);
       toast({ title: `${ids.length} scene${ids.length === 1 ? '' : 's'} deleted` });
+      // Bulk-delete records each row individually so undo restores them
+      // one-by-one. Two clicks of Undo bring back two scenes; that's clearer
+      // than cramming them into a single bulk action whose redo / undo would
+      // need to handle partial failure.
+      for (const s of targets) {
+        record({
+          kind: 'scene.delete',
+          description: `Delete scene · ${s.name}`,
+          row: sceneToRow(s),
+        });
+      }
     } catch {
       toast({
         variant: 'destructive',
@@ -146,6 +179,14 @@ export function ScenesTab() {
     );
     try {
       await getSupabase().from('scenes').update({ hide_attribution: next }).eq('id', scene.id);
+      record({
+        kind: 'scene.update_toggle',
+        description: `${next ? 'Hide' : 'Show'} attribution · ${scene.name}`,
+        sceneId: scene.id,
+        field: 'hide_attribution',
+        before: scene.hideAttribution,
+        after: next,
+      });
     } catch {
       refresh();
     }
@@ -158,6 +199,14 @@ export function ScenesTab() {
     );
     try {
       await getSupabase().from('scenes').update({ loop_enabled: next }).eq('id', scene.id);
+      record({
+        kind: 'scene.update_toggle',
+        description: `${next ? 'Enable' : 'Disable'} loop · ${scene.name}`,
+        sceneId: scene.id,
+        field: 'loop_enabled',
+        before: scene.loopEnabled,
+        after: next,
+      });
     } catch {
       refresh();
     }
@@ -355,13 +404,14 @@ function ScenesUploadDialog({
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const { toast } = useToast();
+  const { record } = useUndoHistory();
 
   const isBulk = files.length > 1;
   // Single-file uploads default to nameFromFilename when the user doesn't type
   // a custom name, so the dialog never blocks on a required name field.
   const canSubmit = files.length > 0;
 
-  async function uploadOne(file: File, sceneName: string) {
+  async function uploadOne(file: File, sceneName: string): Promise<SceneRow> {
     const id = crypto.randomUUID();
     const ext = file.name.split('.').pop() ?? 'mp4';
     const path = `${ORG_ID}/${id}.${ext}`;
@@ -369,6 +419,17 @@ function ScenesUploadDialog({
     const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
     if (upErr) throw upErr;
     const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+    const row: SceneRow = {
+      id,
+      org_id: ORG_ID,
+      name: sceneName,
+      video_url: pub.publicUrl,
+      hide_attribution: hideAttribution,
+      // The DB has a default true for loop_enabled; mirror that here so the
+      // undo / redo round-trip preserves the same value.
+      loop_enabled: true,
+      composition: null,
+    };
     const { error: insErr } = await supabase.from('scenes').insert({
       id,
       org_id: ORG_ID,
@@ -377,6 +438,7 @@ function ScenesUploadDialog({
       hide_attribution: hideAttribution,
     });
     if (insErr) throw insErr;
+    return row;
   }
 
   async function submit() {
@@ -390,7 +452,12 @@ function ScenesUploadDialog({
         ? nameFromFilename(f.name)
         : name.trim() || nameFromFilename(f.name);
       try {
-        await uploadOne(f, sceneName);
+        const row = await uploadOne(f, sceneName);
+        record({
+          kind: 'scene.create',
+          description: `Add scene · ${sceneName}`,
+          row,
+        });
       } catch (e) {
         failed++;
         console.error('[scenes] upload failed', f.name, e);

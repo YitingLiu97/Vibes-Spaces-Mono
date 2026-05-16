@@ -9,6 +9,7 @@ import { Button } from './Button';
 import { Modal } from './Modal';
 import { useToast } from './Toast';
 import { DAYS, type Day, computeWeekdayMask } from '@/lib/weekday-mask';
+import { useUndoHistory, type ScheduleEntryRow } from '@/lib/undo-history';
 
 // Visible window of the day in the timeline. 11:00 → 23:00 covers the full
 // event arc with breathing room on each side; outside this, entries still
@@ -61,6 +62,7 @@ export function ScheduleTab() {
     return isoToday();
   });
   const { toast } = useToast();
+  const { record, signal: historySignal } = useUndoHistory();
 
   const refresh = useCallback(async () => {
     const supabase = getSupabase();
@@ -113,14 +115,43 @@ export function ScheduleTab() {
 
   useEffect(() => {
     refresh().catch(() => setLoading(false));
-  }, [refresh]);
+    // historySignal bumps on undo / redo so the timeline reflects the
+    // reverted state without the user having to refresh.
+  }, [refresh, historySignal]);
+
+  function entryToRow(e: ScheduleEntry): ScheduleEntryRow {
+    return {
+      id: e.id,
+      org_id: ORG_ID,
+      scene_id: e.sceneId,
+      playlist_id: e.playlistId,
+      start_time: e.startTime,
+      end_time: e.endTime,
+      weekday_mask: e.weekdayMask ?? null,
+      override_date: e.overrideDate ?? null,
+    };
+  }
+
+  function labelForEntry(e: ScheduleEntry): string {
+    if (e.sceneId) return scenes.find((s) => s.id === e.sceneId)?.name ?? 'scene';
+    if (e.playlistId) return playlists.find((p) => p.id === e.playlistId)?.name ?? 'playlist';
+    return 'entry';
+  }
 
   async function deleteEntry(id: string) {
     if (!confirm('Delete this schedule entry?')) return;
+    const target = entries.find((e) => e.id === id);
     setEntries((prev) => prev.filter((e) => e.id !== id));
     try {
       await getSupabase().from('schedule_entries').delete().eq('id', id);
       toast({ title: 'Entry deleted' });
+      if (target) {
+        record({
+          kind: 'schedule.delete',
+          description: `Delete ${labelForEntry(target)} ${target.startTime.slice(0, 5)}`,
+          row: entryToRow(target),
+        });
+      }
     } catch {
       refresh();
     }
@@ -129,6 +160,7 @@ export function ScheduleTab() {
   async function rescheduleEntry(id: string, startTime: string, endTime: string) {
     const startDb = startTime + ':00';
     const endDb = endTime + ':00';
+    const before = entries.find((e) => e.id === id);
     setEntries((prev) =>
       prev.map((e) => (e.id === id ? { ...e, startTime: startDb, endTime: endDb } : e)),
     );
@@ -139,6 +171,15 @@ export function ScheduleTab() {
         .eq('id', id);
       if (updErr) throw updErr;
       toast({ title: `Moved to ${startTime}–${endTime}` });
+      if (before) {
+        record({
+          kind: 'schedule.update',
+          description: `Move ${labelForEntry(before)} to ${startTime}`,
+          id,
+          before: { start_time: before.startTime, end_time: before.endTime },
+          after: { start_time: startDb, end_time: endDb },
+        });
+      }
     } catch {
       toast({
         variant: 'destructive',
@@ -170,19 +211,22 @@ export function ScheduleTab() {
         .select()
         .single();
       if (error) throw error;
-      setEntries((prev) => [
-        ...prev,
-        {
-          id: data.id,
-          sceneId: data.scene_id,
-          playlistId: data.playlist_id,
-          startTime: data.start_time,
-          endTime: data.end_time,
-          weekdayMask: data.weekday_mask,
-          overrideDate: data.override_date,
-        },
-      ]);
+      const newEntry: ScheduleEntry = {
+        id: data.id,
+        sceneId: data.scene_id,
+        playlistId: data.playlist_id,
+        startTime: data.start_time,
+        endTime: data.end_time,
+        weekdayMask: data.weekday_mask,
+        overrideDate: data.override_date,
+      };
+      setEntries((prev) => [...prev, newEntry]);
       toast({ title: `Scheduled ${minToTime(startMin)}–${minToTime(endMin)}` });
+      record({
+        kind: 'schedule.create',
+        description: `Add ${labelForEntry(newEntry)} at ${minToTime(startMin)}`,
+        row: entryToRow(newEntry),
+      });
     } catch {
       toast({
         variant: 'destructive',
@@ -614,6 +658,7 @@ function ScheduleAddDialog({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { record } = useUndoHistory();
 
   useEffect(() => {
     if (!open) return;
@@ -662,9 +707,22 @@ function ScheduleAddDialog({
         weekday_mask: recurrence === 'weekly' ? computeWeekdayMask(days) : null,
         override_date: recurrence === 'oneoff' ? overrideDate : null,
       };
-      const { error: insErr } = await getSupabase().from('schedule_entries').insert(row);
+      const { data, error: insErr } = await getSupabase()
+        .from('schedule_entries')
+        .insert(row)
+        .select()
+        .single();
       if (insErr) throw insErr;
       toast({ title: 'Entry added' });
+      const targetName =
+        targetType === 'scene'
+          ? scenes.find((s) => s.id === targetId)?.name
+          : playlists.find((p) => p.id === targetId)?.name;
+      record({
+        kind: 'schedule.create',
+        description: `Add ${targetName ?? 'entry'} ${startTime}`,
+        row: { ...row, id: data.id },
+      });
       onAdded();
       onClose();
     } catch {

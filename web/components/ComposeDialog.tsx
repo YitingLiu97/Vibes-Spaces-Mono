@@ -10,6 +10,7 @@ import { ORG_ID, STORAGE_BUCKET } from '@/lib/constants';
 import { Button } from './Button';
 import { useToast } from './Toast';
 import { CompositionLayer } from './CompositionLayer';
+import { useUndoHistory } from '@/lib/undo-history';
 
 interface Props {
   scene: Scene | null;
@@ -39,6 +40,7 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
   const [segments, setSegments] = useState<Segment[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const { toast } = useToast();
+  const { record } = useUndoHistory();
 
   const loadBackdrops = useCallback(async () => {
     const supabase = getSupabase();
@@ -177,6 +179,7 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
 
   async function selectBackdrop(url: string) {
     if (!scene || url === videoUrl || replacingVideo) return;
+    const previousUrl = videoUrl;
     setReplacingVideo(true);
     try {
       const { error } = await getSupabase()
@@ -186,6 +189,13 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
       if (error) throw error;
       setVideoUrl(url);
       toast({ title: 'Background video swapped', description: scene.name });
+      record({
+        kind: 'scene.update_video_url',
+        description: `Swap backdrop on ${scene.name}`,
+        sceneId: scene.id,
+        before: previousUrl,
+        after: url,
+      });
       onSaved();
     } catch {
       toast({
@@ -200,6 +210,7 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
 
   async function uploadAndSelectVideo(file: File) {
     if (!scene) return;
+    const previousUrl = videoUrl;
     setUploadingVideo(true);
     try {
       const id = crypto.randomUUID();
@@ -217,6 +228,13 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
       setVideoUrl(pub.publicUrl);
       await loadBackdrops();
       toast({ title: 'Video uploaded', description: scene.name });
+      record({
+        kind: 'scene.update_video_url',
+        description: `Upload backdrop for ${scene.name}`,
+        sceneId: scene.id,
+        before: previousUrl,
+        after: pub.publicUrl,
+      });
       onSaved();
     } catch {
       toast({
@@ -284,6 +302,7 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
 
   async function save(opts: { thenPlay?: boolean } = {}) {
     if (!scene) return;
+    const previousComp = scene.composition;
     setSaving(true);
     try {
       const supabase = getSupabase();
@@ -309,6 +328,13 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
       } else {
         toast({ title: 'Composition saved', description: scene.name });
       }
+      record({
+        kind: 'scene.update_composition',
+        description: `Edit composition · ${scene.name}`,
+        sceneId: scene.id,
+        before: previousComp,
+        after: comp,
+      });
       onSaved();
       onClose();
     } catch {
@@ -325,6 +351,7 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
   async function clearAll() {
     if (!confirm('Clear all composition (zones, caption, tint) for this scene?')) return;
     if (!scene) return;
+    const previousComp = scene.composition;
     setSaving(true);
     try {
       const { error } = await getSupabase()
@@ -333,6 +360,13 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
         .eq('id', scene.id);
       if (error) throw error;
       toast({ title: 'Composition cleared' });
+      record({
+        kind: 'scene.update_composition',
+        description: `Clear composition · ${scene.name}`,
+        sceneId: scene.id,
+        before: previousComp,
+        after: null,
+      });
       onSaved();
       onClose();
     } catch {
