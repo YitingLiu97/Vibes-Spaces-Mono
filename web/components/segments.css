@@ -109,6 +109,17 @@
   display: block;
 }
 
+/* Sponsor / partner logo variant — fit the brand mark inside the circle
+   (with a small inset) instead of cropping it like a headshot. */
+.speaker-node-photo--logo {
+  background: rgba(0, 0, 0, 0.35);
+}
+.speaker-node-photo--logo img {
+  object-fit: contain;
+  padding: 14%;
+  box-sizing: border-box;
+}
+
 .speaker-node-initials {
   width: 100%;
   height: 100%;
@@ -150,6 +161,16 @@
   height: 88px;
   border-color: #c07fd4;
   box-shadow: 0 8px 28px rgba(192, 127, 212, 0.35);
+}
+
+/* Segment view shows the cluster larger than the composition overlay. */
+.segment-cluster .speaker-node-photo {
+  width: 86px;
+  height: 86px;
+}
+.segment-cluster .speaker-node--moderator .speaker-node-photo {
+  width: 106px;
+  height: 106px;
 }
 
 @media (max-width: 600px) {

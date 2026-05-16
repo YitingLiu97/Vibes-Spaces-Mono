@@ -2,17 +2,26 @@
 -- Future of NYC Design 2026 — Segments seed
 -- ============================================================================
 -- Companion to fond_2026_event.sql. Pre-populates the Segments tab with the
--- five at-a-glance speaker clusters that map to the event's stage moments:
+-- at-a-glance speaker clusters that map to the event's stage moments:
 --   1. Opening Keynote & Live Portfolio Review (Christie, CJ)
 --   2. Three Scales of NYC Design — Panel (Shandy, Siddiq, Dotun; mod Yiting)
 --   3. Community Roundtable (Stacey, Shandy, Cherie; mod Chelsea)
 --   4. Lightning Talks (Soo Yun, Lee-Sean, Mustafa, Michelle)
 --   5. Closing Keynote (Gazi)
+--   6. Design Awards Judges
+--   7. Presenters (Vibes, 241 Members, Sanders Studios, Vision Brew)
+--   8. Sponsors (Figma, Mobbin, Wonder)
+--   9. Community Partners (AIGA NY, ACF, BKPD, BSM, Her Rising)
 --
 -- Speakers seen on futureofnycdesign.com but not on stage at one of the five
--- segments above (Somya, May, Hedy, David, Craig, Jessica, Christine) are
--- still inserted so they appear in the editor's speaker picker — the user
+-- session segments above (Somya, May, Hedy, David, Craig, Jessica, Christine)
+-- are still inserted so they appear in the editor's speaker picker — the user
 -- can drop them into segments as plans firm up.
+--
+-- Sponsor brands are stored as pseudo-"speakers" (UUID family
+-- dddddddd-7777-…) with logo URLs in photo_url so they cluster on the Segments
+-- dashboard the same way headshots do. They still surface in the speaker
+-- picker; that's fine — they're explicitly named "Figma" etc.
 --
 -- Re-runnable: explicit UUIDs + ON CONFLICT DO NOTHING.
 -- ============================================================================
@@ -74,6 +83,47 @@ insert into speakers (id, org_id, name, photo_url) values
 on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
+-- Sponsor / partner brands (pseudo-speakers, dddddddd-7777-… UUID family)
+-- ----------------------------------------------------------------------------
+-- Photo URLs reference logos in web/public/logos/<group>/<file>. The folder
+-- structure mirrors the three segment groupings: presenters, sponsors, and
+-- community partners. Paths with spaces are URL-encoded so they round-trip
+-- safely through the DB and back into <img src>.
+-- ----------------------------------------------------------------------------
+
+insert into speakers (id, org_id, name, photo_url) values
+  -- Presenters
+  ('dddddddd-7777-7777-7777-000000000001'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Vibes',                    '/logos/presenters/vibes.png'),
+  ('dddddddd-7777-7777-7777-000000000002'::uuid, '00000000-0000-0000-0000-000000000001',
+   '241 Members',              '/logos/presenters/241members.png'),
+  ('dddddddd-7777-7777-7777-000000000003'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Sanders Studios',          '/logos/presenters/sanders_studio_transparent.png'),
+  ('dddddddd-7777-7777-7777-000000000004'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Vision Brew Interactive',  '/logos/presenters/visionbrew_transparent.png'),
+
+  -- Sponsors
+  ('dddddddd-7777-7777-7777-000000000005'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Figma',                    '/logos/sponsors/Figma.png'),
+  ('dddddddd-7777-7777-7777-000000000006'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Mobbin',                   '/logos/sponsors/mobbin.svg'),
+  ('dddddddd-7777-7777-7777-000000000007'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Wonder',                   '/logos/sponsors/wonder.svg'),
+
+  -- Community partners
+  ('dddddddd-7777-7777-7777-000000000008'::uuid, '00000000-0000-0000-0000-000000000001',
+   'AIGA NY',                  '/logos/community%20partners/AIGA%20NY%20Logo_KeyArt_White.png'),
+  ('dddddddd-7777-7777-7777-000000000009'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Asian Creative Foundation', '/logos/community%20partners/acf.png'),
+  ('dddddddd-7777-7777-7777-000000000010'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Brooklyn Product Design',   '/logos/community%20partners/bkpd.png'),
+  ('dddddddd-7777-7777-7777-000000000011'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Black Style Matters',       '/logos/community%20partners/bsm.png'),
+  ('dddddddd-7777-7777-7777-000000000012'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Her Rising',               '/logos/community%20partners/her-rising.png')
+on conflict (id) do nothing;
+
+-- ----------------------------------------------------------------------------
 -- Segments
 -- ----------------------------------------------------------------------------
 
@@ -89,7 +139,13 @@ insert into segments (id, org_id, title, subtitle, position) values
   ('ffffffff-6666-6666-6666-000000000005'::uuid, '00000000-0000-0000-0000-000000000001',
    'Closing Keynote — Make Weird Things', 'Keynote', 4),
   ('ffffffff-6666-6666-6666-000000000006'::uuid, '00000000-0000-0000-0000-000000000001',
-   'Design Awards Judges', 'Judges', 5)
+   'Design Awards Judges', 'Judges', 5),
+  ('ffffffff-6666-6666-6666-000000000007'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Presenters',         'Presented By',        6),
+  ('ffffffff-6666-6666-6666-000000000008'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Sponsors',           'Sponsored By',        7),
+  ('ffffffff-6666-6666-6666-000000000009'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Community Partners', 'In Partnership With', 8)
 on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
@@ -131,13 +187,31 @@ insert into segment_speakers (segment_id, speaker_id, role, position) values
   ('ffffffff-6666-6666-6666-000000000006', 'eeeeeeee-5555-5555-5555-000000000019', 'speaker', 2),
   ('ffffffff-6666-6666-6666-000000000006', 'eeeeeeee-5555-5555-5555-000000000002', 'speaker', 3),
   ('ffffffff-6666-6666-6666-000000000006', 'eeeeeeee-5555-5555-5555-000000000001', 'speaker', 4),
-  ('ffffffff-6666-6666-6666-000000000006', 'eeeeeeee-5555-5555-5555-000000000006', 'speaker', 5)
+  ('ffffffff-6666-6666-6666-000000000006', 'eeeeeeee-5555-5555-5555-000000000006', 'speaker', 5),
+
+  -- Presenters — Vibes / 241 Members / Sanders Studios / Vision Brew
+  ('ffffffff-6666-6666-6666-000000000007', 'dddddddd-7777-7777-7777-000000000001', 'speaker', 0),
+  ('ffffffff-6666-6666-6666-000000000007', 'dddddddd-7777-7777-7777-000000000002', 'speaker', 1),
+  ('ffffffff-6666-6666-6666-000000000007', 'dddddddd-7777-7777-7777-000000000003', 'speaker', 2),
+  ('ffffffff-6666-6666-6666-000000000007', 'dddddddd-7777-7777-7777-000000000004', 'speaker', 3),
+
+  -- Sponsors — Figma / Mobbin / Wonder
+  ('ffffffff-6666-6666-6666-000000000008', 'dddddddd-7777-7777-7777-000000000005', 'speaker', 0),
+  ('ffffffff-6666-6666-6666-000000000008', 'dddddddd-7777-7777-7777-000000000006', 'speaker', 1),
+  ('ffffffff-6666-6666-6666-000000000008', 'dddddddd-7777-7777-7777-000000000007', 'speaker', 2),
+
+  -- Community Partners — AIGA NY / ACF / BKPD / BSM / Her Rising
+  ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000008', 'speaker', 0),
+  ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000009', 'speaker', 1),
+  ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000010', 'speaker', 2),
+  ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000011', 'speaker', 3),
+  ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000012', 'speaker', 4)
 on conflict (segment_id, speaker_id) do nothing;
 
 -- Note: compositions are auto-built by the SegmentsTab editor on next save.
--- See shared/src/buildSegmentComposition.ts. The remote DB has been backfilled
--- with computed JSON for the six seeded segments above; re-running this seed
--- on a fresh DB will leave composition=NULL until each segment is saved once.
+-- See shared/src/buildSegmentComposition.ts. Re-running this seed on a fresh
+-- DB will leave composition=NULL until each segment is saved once. Open each
+-- new segment in the editor and hit Save (no edits needed) to populate it.
 
 commit;
 
@@ -147,3 +221,4 @@ commit;
 -- delete from segment_speakers where segment_id::text like 'ffffffff-6666-%';
 -- delete from segments          where id::text like 'ffffffff-6666-%';
 -- delete from speakers          where id::text like 'eeeeeeee-5555-%';
+-- delete from speakers          where id::text like 'dddddddd-7777-%';

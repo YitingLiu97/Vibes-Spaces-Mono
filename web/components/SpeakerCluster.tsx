@@ -45,7 +45,7 @@ export function SpeakerCluster({ cluster }: Props) {
           item={moderator}
           isModerator
           x={50}
-          y={8}
+          y={32}
           rotate={jitter(moderator.key, 'r', 3)}
         />
       )}
@@ -88,7 +88,9 @@ function SpeakerNode({
         transform: `translate(-50%, -50%) rotate(${rotate}deg)`,
       }}
     >
-      <div className="speaker-node-photo">
+      <div
+        className={`speaker-node-photo${item.photoUrl?.startsWith('/logos/') ? ' speaker-node-photo--logo' : ''}`}
+      >
         {item.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

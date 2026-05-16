@@ -37,6 +37,13 @@ export interface SceneSpeakerCluster {
   items: SceneSpeakerClusterItem[];
 }
 
+// Event-level branding lockup rendered at the top of the scene: logo +
+// wordmark on the left, website on the right. The visual constants live in
+// shared/src/fondBranding.ts so the JSON only needs to carry the toggle.
+export interface SceneBranding {
+  enabled: boolean;
+}
+
 export interface SceneComposition {
   zones: {
     header: SceneZone;
@@ -49,6 +56,7 @@ export interface SceneComposition {
   // When present, renders the circular speaker arc on top of the video.
   // Optional + nullable so existing rows (and EMPTY_COMPOSITION) stay valid.
   speakerCluster?: SceneSpeakerCluster | null;
+  branding?: SceneBranding | null;
 }
 
 export interface Scene {
@@ -69,6 +77,7 @@ export const EMPTY_COMPOSITION: SceneComposition = {
   caption: null,
   tint: null,
   accent: null,
+  branding: null,
 };
 
 export interface Playlist {

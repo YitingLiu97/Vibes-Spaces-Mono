@@ -27,6 +27,7 @@ export function BuildTab() {
   const [chosenSegment, setChosenSegment] = useState<Segment | null>(null);
   const [captionDraft, setCaptionDraft] = useState('');
   const [sceneName, setSceneName] = useState('');
+  const [brandingEnabled, setBrandingEnabled] = useState(true);
   const [creating, setCreating] = useState(false);
 
   const { toast } = useToast();
@@ -104,6 +105,7 @@ export function BuildTab() {
     if (!chosenSegment) return;
     setCaptionDraft(baseComposition?.caption?.text ?? chosenSegment.title);
     setSceneName((prev) => prev || chosenSegment.title);
+    setBrandingEnabled(baseComposition?.branding?.enabled ?? true);
   }, [chosenSegment?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const previewComposition: SceneComposition | null = useMemo(() => {
@@ -113,8 +115,9 @@ export function BuildTab() {
       caption: baseComposition.caption
         ? { ...baseComposition.caption, text: captionDraft }
         : null,
+      branding: { enabled: brandingEnabled },
     };
-  }, [baseComposition, captionDraft]);
+  }, [baseComposition, captionDraft, brandingEnabled]);
 
   const canCreate = !!chosenBackdrop && !!chosenSegment && !creating;
 
@@ -138,6 +141,7 @@ export function BuildTab() {
       setChosenSegment(null);
       setCaptionDraft('');
       setSceneName('');
+      setBrandingEnabled(true);
     } catch {
       toast({
         variant: 'destructive',
@@ -213,6 +217,20 @@ export function BuildTab() {
               placeholder={chosenSegment.title}
               className="rounded-md border border-border bg-bg-base px-3 py-2 text-sm text-fg-primary"
             />
+          </label>
+          <label className="flex items-center gap-3 pt-1">
+            <input
+              type="checkbox"
+              checked={brandingEnabled}
+              onChange={(e) => setBrandingEnabled(e.target.checked)}
+              className="h-4 w-4 accent-accent"
+            />
+            <span className="flex flex-col">
+              <span className="text-sm text-fg-primary">Show Future of NYC Design branding</span>
+              <span className="text-xs text-fg-tertiary">
+                Logo + wordmark top-left, futureofnycdesign.com top-right
+              </span>
+            </span>
           </label>
         </div>
       )}

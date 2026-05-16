@@ -1,4 +1,5 @@
 import type { SceneComposition, SceneSpeakerCluster } from '@vibes/shared/types';
+import { FOND_BRANDING } from '@vibes/shared/fondBranding';
 
 interface Props {
   composition: SceneComposition | null;
@@ -6,7 +7,7 @@ interface Props {
 
 export function CompositionLayer({ composition }: Props) {
   if (!composition) return null;
-  const { zones, caption, tint, accent, speakerCluster } = composition;
+  const { zones, caption, tint, accent, speakerCluster, branding } = composition;
   const accentColor = accent ?? 'var(--color-accent)';
 
   return (
@@ -16,6 +17,55 @@ export function CompositionLayer({ composition }: Props) {
           className="composition-tint"
           style={{ background: tint.color, opacity: tint.opacity / 100 }}
         />
+      )}
+      {branding?.enabled && (
+        <>
+          {FOND_BRANDING.showHeader && (
+            <img
+              className="composition-fond-header"
+              src={FOND_BRANDING.headerImageUrl}
+              alt=""
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                void window.log?.error('fond_header_failed', { url: FOND_BRANDING.headerImageUrl });
+              }}
+            />
+          )}
+          {FOND_BRANDING.showFooter && (
+            <video
+              className="composition-fond-footer"
+              src={FOND_BRANDING.footerVideoUrl}
+              autoPlay
+              muted
+              loop
+              playsInline
+              onError={(e) => {
+                (e.currentTarget as HTMLVideoElement).style.display = 'none';
+                void window.log?.error('fond_footer_failed', { url: FOND_BRANDING.footerVideoUrl });
+              }}
+            />
+          )}
+          {(FOND_BRANDING.showLogo || FOND_BRANDING.showUrl) && (
+            <div className="composition-branding">
+              {FOND_BRANDING.showLogo ? (
+                <img
+                  className="composition-branding-logo"
+                  src={FOND_BRANDING.logoUrl}
+                  alt={FOND_BRANDING.wordmark}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    void window.log?.error('branding_logo_failed', { url: FOND_BRANDING.logoUrl });
+                  }}
+                />
+              ) : (
+                <span />
+              )}
+              {FOND_BRANDING.showUrl && (
+                <span className="composition-branding-url">{FOND_BRANDING.website}</span>
+              )}
+            </div>
+          )}
+        </>
       )}
       <div className="composition-zones">
         <Zone name="header" zone={zones.header} />
@@ -111,7 +161,7 @@ function SpeakerClusterLayer({ cluster }: { cluster: SceneSpeakerCluster }) {
   return (
     <div className="speaker-cluster">
       {moderator && (
-        <Node item={moderator} isModerator x={50} y={8} rotate={jitter(moderator.key, 'r', 3)} />
+        <Node item={moderator} isModerator x={50} y={32} rotate={jitter(moderator.key, 'r', 3)} />
       )}
       {panel.map((s, i) => {
         const angleDeg = start + step * i;
@@ -150,7 +200,9 @@ function Node({
         transform: `translate(-50%, -50%) rotate(${rotate}deg)`,
       }}
     >
-      <div className="speaker-node-photo">
+      <div
+        className={`speaker-node-photo${item.photoUrl?.startsWith('/logos/') ? ' speaker-node-photo--logo' : ''}`}
+      >
         {item.photoUrl ? (
           <img
             src={item.photoUrl}

@@ -47,5 +47,6 @@ export function buildSegmentComposition(
     tint: { color: '#000000', opacity: 40 },
     accent: null,
     speakerCluster: items.length > 0 ? { items } : null,
+    branding: { enabled: true },
   };
 }

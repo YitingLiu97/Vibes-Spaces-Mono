@@ -10,6 +10,7 @@ import { Modal } from './Modal';
 import { useToast } from './Toast';
 import { GenerateFromReferenceButton } from './GenerateFromReferenceButton';
 import { ComposeDialog } from './ComposeDialog';
+import { CompositionLayer } from './CompositionLayer';
 import { ImportEventDialog } from './ImportEventDialog';
 import { ExportEventDialog } from './ExportEventDialog';
 
@@ -164,6 +165,24 @@ export function ScenesTab() {
               key={scene.id}
               className="flex items-center gap-4 rounded-lg border border-border-subtle bg-bg-elevated px-4 py-3"
             >
+              <button
+                type="button"
+                onClick={() => setComposingScene(scene)}
+                className="scene-row-preview"
+                aria-label={`Edit composition for ${scene.name}`}
+                title="Click to adjust composition"
+              >
+                <div className="scene-row-preview-inner">
+                  <video
+                    src={scene.videoUrl}
+                    muted
+                    playsInline
+                    preload="metadata"
+                    className="scene-row-preview-video"
+                  />
+                  <CompositionLayer composition={scene.composition} />
+                </div>
+              </button>
               <div className="flex flex-1 flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <span className="text-base font-medium text-fg-primary">{scene.name}</span>

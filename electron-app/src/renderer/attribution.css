@@ -48,7 +48,9 @@
   z-index: 3;
   display: grid;
   grid-template-rows: minmax(0, 22%) 1fr minmax(0, 22%);
-  padding: 4% 5%;
+  /* Top/bottom padding clears the persistent FOND header (~11%) and footer
+     ticker (~9%); see .composition-fond-header / -footer. */
+  padding: 12% 5% 10%;
   pointer-events: none;
 }
 
@@ -80,7 +82,9 @@
   display: grid;
   grid-template-rows: 1fr 1fr 1fr;
   grid-template-columns: 1fr 1fr 1fr;
-  padding: 5% 6%;
+  /* Top/bottom padding clears the persistent FOND header (~11%) and footer
+     ticker (~9%); see .composition-fond-header / -footer. */
+  padding: 13% 6% 11%;
   pointer-events: none;
 }
 
@@ -126,6 +130,71 @@
   pointer-events: none;
 }
 
+/* Persistent FOND stream-overlay frame — full-bleed header graphic + looping
+   footer ticker that ride above every scene. Mirrors web styles defined in
+   web/components/composition.css. z-index 5 puts them above zones/cluster/
+   caption, below the accent frame. The simple .composition-branding lockup
+   renders on top of the header graphic. */
+.composition-fond-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 5;
+  pointer-events: none;
+  display: block;
+  object-fit: contain;
+  object-position: top center;
+}
+
+.composition-fond-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 5;
+  pointer-events: none;
+  display: block;
+  object-fit: cover;
+  object-position: bottom center;
+}
+
+/* Event-level branding lockup — FOND logo+wordmark top-left, website
+   top-right. Uses vw/vh so it scales with the venue display. The logo SVG
+   already contains the wordmark, so no separate text element is needed.
+   Mirrored web styles live in web/components/composition.css. */
+.composition-branding {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5vw;
+  padding: 1.4vh 2vw;
+  pointer-events: none;
+  text-shadow: 0 0.2vh 1vh rgba(0, 0, 0, 0.55);
+}
+
+.composition-branding-logo {
+  height: 5vh;
+  width: auto;
+  max-width: 50%;
+  object-fit: contain;
+  filter: drop-shadow(0 0.2vh 0.6vh rgba(0, 0, 0, 0.5));
+}
+
+.composition-branding-url {
+  font-family: 'Space Mono', monospace;
+  font-size: 1.6vh;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  color: rgba(240, 234, 245, 0.78);
+  white-space: nowrap;
+}
+
 /* ── Speaker cluster overlay ────────────────────────────────────────────── */
 /* Renders the branded headshot arc on top of the scene video. Sizes use vw
    so the cluster scales with the venue display (no container-type needed on
@@ -134,7 +203,9 @@
 
 .composition-cluster-layer {
   position: absolute;
-  inset: 0;
+  /* Inset clears the persistent FOND header (~11%) and footer ticker (~9%).
+     The cluster math uses % inside this box, so it auto-rescales. */
+  inset: 12% 0 10% 0;
   z-index: 3;
   pointer-events: none;
 }
@@ -167,6 +238,17 @@
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* Sponsor / partner logo variant — fit the brand mark inside the circle
+   (with a small inset) instead of cropping it like a headshot. */
+.speaker-node-photo--logo {
+  background: rgba(0, 0, 0, 0.35);
+}
+.speaker-node-photo--logo img {
+  object-fit: contain;
+  padding: 14%;
+  box-sizing: border-box;
 }
 
 .speaker-node-initials {

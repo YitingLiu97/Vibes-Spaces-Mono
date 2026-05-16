@@ -15,7 +15,9 @@
   z-index: 3;
   display: grid;
   grid-template-rows: minmax(0, 22%) 1fr minmax(0, 22%);
-  padding: 4% 5%;
+  /* Top/bottom padding clears the persistent FOND header (~11%) and footer
+     ticker (~9%); see .composition-fond-header / -footer. */
+  padding: 12% 5% 10%;
   pointer-events: none;
 }
 
@@ -63,7 +65,9 @@
   display: grid;
   grid-template-rows: 1fr 1fr 1fr;
   grid-template-columns: 1fr 1fr 1fr;
-  padding: 5% 6%;
+  /* Top/bottom padding clears the persistent FOND header (~11%) and footer
+     ticker (~9%); see .composition-fond-header / -footer. */
+  padding: 13% 6% 11%;
   pointer-events: none;
 }
 
@@ -132,7 +136,121 @@
    .speaker-cluster / .speaker-node styles defined in segments.css. */
 .composition-cluster-layer {
   position: absolute;
-  inset: 0;
+  /* Inset clears the persistent FOND header (~11%) and footer ticker (~9%).
+     The cluster math uses % inside this box, so it auto-rescales. */
+  inset: 12% 0 10% 0;
   z-index: 3;
   pointer-events: none;
+}
+
+/* Persistent FOND stream-overlay frame — full-bleed header graphic + looping
+   footer ticker that ride above every scene. Both files live at
+   /public/fixed/ and can be swapped without code changes. z-index 5 puts
+   them above zones/cluster/caption, below the accent frame. The simple
+   .composition-branding lockup renders on top of the header graphic. */
+.composition-fond-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  z-index: 5;
+  pointer-events: none;
+  display: block;
+  object-fit: contain;
+  object-position: top center;
+}
+
+.composition-fond-footer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 5;
+  pointer-events: none;
+  display: block;
+  object-fit: cover;
+  object-position: bottom center;
+}
+
+/* Event-level branding lockup — FOND logo+wordmark top-left, website
+   top-right. Sits at z-index 5 (above zones/cluster/caption, below the
+   accent frame). The logo SVG already contains the wordmark, so no separate
+   text element is needed. See shared/src/fondBranding.ts. */
+.composition-branding {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  pointer-events: none;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.5);
+}
+
+.composition-branding-logo {
+  height: 28px;
+  width: auto;
+  max-width: 50%;
+  object-fit: contain;
+  filter: drop-shadow(0 1px 4px rgba(0, 0, 0, 0.5));
+}
+
+.composition-branding-url {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: lowercase;
+  color: rgba(240, 234, 245, 0.78);
+  white-space: nowrap;
+}
+
+/* Scene-row thumbnail — shows a miniature of the composed scene on the
+   Scenes tab so operators can see what each row is without opening Compose.
+   The inner wrapper renders at canonical 1280×720 then scales down, so the
+   composition's px-based bits (branding lockup, caption font sizes) shrink
+   proportionally instead of overpowering the thumbnail. */
+.scene-row-preview {
+  position: relative;
+  width: 192px;
+  height: 108px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-subtle);
+  background: #000;
+  padding: 0;
+  cursor: pointer;
+  transition: border-color 150ms ease, transform 150ms ease;
+}
+
+.scene-row-preview:hover {
+  border-color: rgba(192, 127, 212, 0.55);
+  transform: translateY(-1px);
+}
+
+.scene-row-preview:focus-visible {
+  outline: 2px solid #c07fd4;
+  outline-offset: 2px;
+}
+
+.scene-row-preview-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1280px;
+  height: 720px;
+  transform: scale(0.15);
+  transform-origin: top left;
+}
+
+.scene-row-preview-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
