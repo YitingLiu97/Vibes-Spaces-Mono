@@ -9,6 +9,7 @@
   ],
   "scripts": {
     "test": "npm run test -w @vibes/shared",
+    "dev": "concurrently -k -n web,electron -c blue,magenta \"npm run dev:web\" \"npm run dev:electron\"",
     "dev:web": "npm run dev -w @vibes/web",
     "dev:electron": "npm run dev -w @vibes/electron-app",
     "build:web": "npm run build -w @vibes/web",
