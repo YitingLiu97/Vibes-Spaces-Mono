@@ -126,6 +126,29 @@ export function ScheduleTab() {
     }
   }
 
+  async function rescheduleEntry(id: string, startTime: string, endTime: string) {
+    const startDb = startTime + ':00';
+    const endDb = endTime + ':00';
+    setEntries((prev) =>
+      prev.map((e) => (e.id === id ? { ...e, startTime: startDb, endTime: endDb } : e)),
+    );
+    try {
+      const { error: updErr } = await getSupabase()
+        .from('schedule_entries')
+        .update({ start_time: startDb, end_time: endDb })
+        .eq('id', id);
+      if (updErr) throw updErr;
+      toast({ title: `Moved to ${startTime}–${endTime}` });
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Couldn’t reschedule',
+        description: 'Check your connection and try again.',
+      });
+      refresh();
+    }
+  }
+
   const visibleEntries = useMemo(
     () => entries.filter((e) => entryMatchesDate(e, date)).sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [entries, date],
@@ -180,7 +203,7 @@ export function ScheduleTab() {
         </Button>
         <span className="text-sm text-fg-secondary ml-2">{dateLabel}</span>
         <span className="text-xs text-fg-tertiary ml-auto">
-          Click an empty slot to add · click an entry to delete
+          Click empty to add · drag block to move · drag edges to resize · click to delete
         </span>
       </div>
 
@@ -192,6 +215,7 @@ export function ScheduleTab() {
           labelFor={labelFor}
           onClickEmpty={(t) => openAdd(t)}
           onClickEntry={(e) => deleteEntry(e.id)}
+          onReschedule={rescheduleEntry}
         />
       )}
 
@@ -217,18 +241,25 @@ export function ScheduleTab() {
   );
 }
 
+type DragMode = 'move' | 'start' | 'end';
+type Draft = { id: string; startMin: number; endMin: number };
+
 function ScheduleTimeline({
   entries,
   labelFor,
   onClickEmpty,
   onClickEntry,
+  onReschedule,
 }: {
   entries: ScheduleEntry[];
   labelFor: (e: ScheduleEntry) => string;
   onClickEmpty: (time: string) => void;
   onClickEntry: (e: ScheduleEntry) => void;
+  onReschedule: (id: string, startTime: string, endTime: string) => void;
 }) {
   const railRef = useRef<HTMLDivElement>(null);
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const suppressClickRef = useRef(false);
 
   function pct(min: number): number {
     return ((min - VISIBLE_START_MIN) / VISIBLE_SPAN) * 100;
@@ -242,6 +273,56 @@ function ScheduleTimeline({
     const ratio = Math.max(0, Math.min(1, x / rect.width));
     const min = VISIBLE_START_MIN + Math.round((ratio * VISIBLE_SPAN) / 5) * 5;
     onClickEmpty(minToTime(min));
+  }
+
+  // Pointer-driven drag: click without movement → onClickEntry; any motion
+  // beyond a small threshold → live draft preview, then persist on release.
+  function startDrag(ev: React.PointerEvent, e: ScheduleEntry, mode: DragMode) {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    ev.stopPropagation();
+    const rect = railRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const minutesPerPx = VISIBLE_SPAN / rect.width;
+    const pointerStartX = ev.clientX;
+    const originalStart = timeToMin(e.startTime);
+    const originalEnd = timeToMin(e.endTime);
+    const duration = originalEnd - originalStart;
+    let moved = false;
+    let lastDraft: Draft | null = null;
+
+    const onMove = (mv: PointerEvent) => {
+      const deltaPx = mv.clientX - pointerStartX;
+      if (!moved && Math.abs(deltaPx) > 3) moved = true;
+      const deltaMin = Math.round((deltaPx * minutesPerPx) / 5) * 5;
+      let newStart = originalStart;
+      let newEnd = originalEnd;
+      if (mode === 'move') {
+        newStart = Math.max(0, Math.min(24 * 60 - duration, originalStart + deltaMin));
+        newEnd = newStart + duration;
+      } else if (mode === 'start') {
+        newStart = Math.max(0, Math.min(originalEnd - 5, originalStart + deltaMin));
+      } else {
+        newEnd = Math.min(24 * 60, Math.max(originalStart + 5, originalEnd + deltaMin));
+      }
+      lastDraft = { id: e.id, startMin: newStart, endMin: newEnd };
+      setDraft(lastDraft);
+    };
+
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      setDraft(null);
+      if (moved) {
+        suppressClickRef.current = true;
+        if (lastDraft) {
+          onReschedule(e.id, minToTime(lastDraft.startMin), minToTime(lastDraft.endMin));
+        }
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
   }
 
   const hours: number[] = [];
@@ -263,32 +344,55 @@ function ScheduleTimeline({
           <div key={h} className="schedule-rail-grid" style={{ left: `${pct(h * 60)}%` }} aria-hidden />
         ))}
         {entries.map((e) => {
-          const start = timeToMin(e.startTime);
-          const end = timeToMin(e.endTime);
+          const isDrafting = draft?.id === e.id;
+          const start = isDrafting ? draft!.startMin : timeToMin(e.startTime);
+          const end = isDrafting ? draft!.endMin : timeToMin(e.endTime);
           if (end <= VISIBLE_START_MIN || start >= VISIBLE_END_MIN) return null;
           const clippedStart = Math.max(start, VISIBLE_START_MIN);
           const clippedEnd = Math.min(end, VISIBLE_END_MIN);
           const isPlaylist = !!e.playlistId;
           return (
-            <button
+            <div
               key={e.id}
-              type="button"
+              role="button"
+              tabIndex={0}
+              onPointerDown={(ev) => startDrag(ev, e, 'move')}
               onClick={(ev) => {
                 ev.stopPropagation();
+                if (suppressClickRef.current) {
+                  suppressClickRef.current = false;
+                  return;
+                }
                 onClickEntry(e);
               }}
-              className={`schedule-block${isPlaylist ? ' schedule-block--playlist' : ''}`}
+              onKeyDown={(ev) => {
+                if (ev.key === 'Enter' || ev.key === ' ') {
+                  ev.preventDefault();
+                  onClickEntry(e);
+                }
+              }}
+              className={`schedule-block${isPlaylist ? ' schedule-block--playlist' : ''}${isDrafting ? ' schedule-block--dragging' : ''}`}
               style={{
                 left: `${pct(clippedStart)}%`,
                 width: `${pct(clippedEnd) - pct(clippedStart)}%`,
               }}
-              title={`${labelFor(e)} · ${e.startTime.slice(0, 5)}–${e.endTime.slice(0, 5)}`}
+              title={`${labelFor(e)} · ${minToTime(start)}–${minToTime(end)}`}
             >
+              <span
+                className="schedule-block-handle schedule-block-handle--start"
+                onPointerDown={(ev) => startDrag(ev, e, 'start')}
+                aria-hidden
+              />
               <span className="schedule-block-label">{labelFor(e)}</span>
               <span className="schedule-block-time">
-                {e.startTime.slice(0, 5)}–{e.endTime.slice(0, 5)}
+                {minToTime(start)}–{minToTime(end)}
               </span>
-            </button>
+              <span
+                className="schedule-block-handle schedule-block-handle--end"
+                onPointerDown={(ev) => startDrag(ev, e, 'end')}
+                aria-hidden
+              />
+            </div>
           );
         })}
       </div>
