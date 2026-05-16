@@ -140,3 +140,15 @@
   background: #c07fd4;
   color: #1c1c22;
 }
+
+/* Compact picker used inside the Compose sidebar (~360px wide). Reuses
+   .build-tile* styles but with smaller min size and a scrollable cap so the
+   whole sidebar doesn't grow unbounded as more backdrops accumulate. */
+.compose-video-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 2px;
+}

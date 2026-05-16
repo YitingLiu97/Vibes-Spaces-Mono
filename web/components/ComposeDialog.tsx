@@ -1,12 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Play, X } from 'lucide-react';
+import { Check, Play, Upload, X } from 'lucide-react';
 import type { Scene, SceneComposition, Segment, SegmentSpeakerRef, Speaker } from '@vibes/shared/types';
 import { EMPTY_COMPOSITION } from '@vibes/shared/types';
 import { buildSegmentComposition } from '@vibes/shared/buildSegmentComposition';
 import { getSupabase } from '@/lib/supabase';
-import { ORG_ID } from '@/lib/constants';
+import { ORG_ID, STORAGE_BUCKET } from '@/lib/constants';
 import { Button } from './Button';
 import { useToast } from './Toast';
 import { CompositionLayer } from './CompositionLayer';
@@ -17,6 +17,13 @@ interface Props {
   onSaved: () => void;
 }
 
+interface Backdrop {
+  name: string;
+  url: string;
+}
+
+const VIDEO_EXT = /\.(mp4|webm|mov|m4v)$/i;
+
 const cloneComposition = (c: SceneComposition | null): SceneComposition => {
   if (!c) return JSON.parse(JSON.stringify(EMPTY_COMPOSITION));
   return JSON.parse(JSON.stringify(c));
@@ -24,14 +31,47 @@ const cloneComposition = (c: SceneComposition | null): SceneComposition => {
 
 export function ComposeDialog({ scene, onClose, onSaved }: Props) {
   const [comp, setComp] = useState<SceneComposition>(() => cloneComposition(scene?.composition ?? null));
+  const [videoUrl, setVideoUrl] = useState(scene?.videoUrl ?? '');
+  const [replacingVideo, setReplacingVideo] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [backdrops, setBackdrops] = useState<Backdrop[]>([]);
   const [saving, setSaving] = useState(false);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [speakers, setSpeakers] = useState<Speaker[]>([]);
   const { toast } = useToast();
 
+  const loadBackdrops = useCallback(async () => {
+    const supabase = getSupabase();
+    const { data } = await supabase.storage.from(STORAGE_BUCKET).list(ORG_ID, {
+      sortBy: { column: 'updated_at', order: 'desc' },
+      limit: 200,
+    });
+    setBackdrops(
+      (data ?? [])
+        .filter((f) => VIDEO_EXT.test(f.name))
+        .map((f) => {
+          const path = `${ORG_ID}/${f.name}`;
+          const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+          return { name: f.name, url: pub.publicUrl };
+        }),
+    );
+  }, []);
+
+  // Depend on scene.id rather than the scene reference so that an in-place
+  // refresh (e.g. after replacing the video) doesn't wipe unsaved composition
+  // edits. Comp/videoUrl only reset when the user opens a different scene.
   useEffect(() => {
-    if (scene) setComp(cloneComposition(scene.composition));
-  }, [scene]);
+    if (scene) {
+      setComp(cloneComposition(scene.composition));
+      setVideoUrl(scene.videoUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scene?.id]);
+
+  useEffect(() => {
+    if (!scene) return;
+    loadBackdrops().catch(() => {});
+  }, [scene?.id, loadBackdrops]);
 
   useEffect(() => {
     if (!scene) return;
@@ -134,6 +174,60 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
     },
     [],
   );
+
+  async function selectBackdrop(url: string) {
+    if (!scene || url === videoUrl || replacingVideo) return;
+    setReplacingVideo(true);
+    try {
+      const { error } = await getSupabase()
+        .from('scenes')
+        .update({ video_url: url })
+        .eq('id', scene.id);
+      if (error) throw error;
+      setVideoUrl(url);
+      toast({ title: 'Background video swapped', description: scene.name });
+      onSaved();
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Couldn’t swap video',
+        description: 'Check your connection and try again.',
+      });
+    } finally {
+      setReplacingVideo(false);
+    }
+  }
+
+  async function uploadAndSelectVideo(file: File) {
+    if (!scene) return;
+    setUploadingVideo(true);
+    try {
+      const id = crypto.randomUUID();
+      const ext = file.name.split('.').pop() ?? 'mp4';
+      const path = `${ORG_ID}/${id}.${ext}`;
+      const supabase = getSupabase();
+      const { error: upErr } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
+      if (upErr) throw upErr;
+      const { data: pub } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
+      const { error } = await supabase
+        .from('scenes')
+        .update({ video_url: pub.publicUrl })
+        .eq('id', scene.id);
+      if (error) throw error;
+      setVideoUrl(pub.publicUrl);
+      await loadBackdrops();
+      toast({ title: 'Video uploaded', description: scene.name });
+      onSaved();
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Couldn’t upload video',
+        description: 'Check your connection and try again.',
+      });
+    } finally {
+      setUploadingVideo(false);
+    }
+  }
 
   async function uploadZoneImage(zone: 'header' | 'center' | 'footer', file: File) {
     try {
@@ -282,6 +376,17 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
       <div className="flex flex-1 min-h-0 flex-col md:flex-row">
         {/* Sidebar */}
         <aside className="w-full md:w-[360px] border-b md:border-b-0 md:border-r border-border-subtle overflow-y-auto p-5 flex flex-col gap-5">
+          <CollapsibleSection title="Background video" defaultOpen>
+            <VideoPickerControls
+              backdrops={backdrops}
+              currentUrl={videoUrl}
+              swapping={replacingVideo}
+              uploading={uploadingVideo}
+              onSelect={selectBackdrop}
+              onUpload={uploadAndSelectVideo}
+            />
+          </CollapsibleSection>
+
           <CollapsibleSection title="Apply segment" defaultOpen>
             {segments.length === 0 ? (
               <p className="text-xs text-fg-tertiary">
@@ -363,7 +468,7 @@ export function ComposeDialog({ scene, onClose, onSaved }: Props) {
 
         {/* Stage preview */}
         <main className="flex flex-1 min-h-0 items-center justify-center p-5 bg-bg-base">
-          <Stage videoUrl={scene.videoUrl} composition={comp} loop={scene.loopEnabled} />
+          <Stage videoUrl={videoUrl} composition={comp} loop={scene.loopEnabled} />
         </main>
       </div>
     </div>
@@ -386,6 +491,87 @@ function CollapsibleSection({
       </summary>
       <div className="pt-2 flex flex-col gap-2">{children}</div>
     </details>
+  );
+}
+
+function VideoPickerControls({
+  backdrops,
+  currentUrl,
+  swapping,
+  uploading,
+  onSelect,
+  onUpload,
+}: {
+  backdrops: Backdrop[];
+  currentUrl: string;
+  swapping: boolean;
+  uploading: boolean;
+  onSelect: (url: string) => void;
+  onUpload: (f: File) => void;
+}) {
+  const busy = swapping || uploading;
+  return (
+    <>
+      <p className="text-[10px] text-fg-tertiary">
+        Pick a video from storage to swap. Composition (zones, caption, tint) is kept.
+      </p>
+      {backdrops.length === 0 ? (
+        <div className="rounded border border-dashed border-border bg-bg-base p-3 text-center text-[10px] uppercase tracking-wider text-fg-tertiary">
+          No videos in storage yet
+        </div>
+      ) : (
+        <div className="compose-video-picker">
+          {backdrops.map((b) => {
+            const selected = b.url === currentUrl;
+            return (
+              <button
+                key={b.url}
+                type="button"
+                onClick={() => onSelect(b.url)}
+                disabled={busy && !selected}
+                className={selected ? 'build-tile build-tile--selected' : 'build-tile'}
+                title={b.name}
+              >
+                <video
+                  src={b.url}
+                  muted
+                  playsInline
+                  preload="metadata"
+                  className="build-tile-video"
+                />
+                <div className="build-tile-label">{b.name}</div>
+                {selected && (
+                  <div className="build-tile-check">
+                    <Check className="h-4 w-4" strokeWidth={2.5} />
+                  </div>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <label
+        className={
+          uploading
+            ? 'relative mt-1 flex cursor-wait items-center justify-center gap-2 rounded border border-dashed border-border bg-bg-base px-3 py-2 text-[9px] uppercase tracking-wider text-fg-tertiary opacity-60'
+            : 'relative mt-1 flex cursor-pointer items-center justify-center gap-2 rounded border border-dashed border-border bg-bg-base px-3 py-2 text-[9px] uppercase tracking-wider text-fg-tertiary hover:border-accent hover:text-fg-primary'
+        }
+      >
+        <Upload className="h-3 w-3" strokeWidth={1.5} />
+        {uploading ? 'Uploading…' : 'Upload new video'}
+        <input
+          type="file"
+          accept="video/*"
+          disabled={uploading}
+          onChange={(e) => {
+            const f = e.target.files?.[0];
+            if (f) onUpload(f);
+            e.target.value = '';
+          }}
+          className="absolute inset-0 cursor-pointer opacity-0 disabled:cursor-wait"
+        />
+      </label>
+    </>
   );
 }
 
@@ -624,6 +810,7 @@ function Stage({
       style={{ boxShadow: `0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px ${composition.accent ?? 'var(--color-accent)'}` }}
     >
       <video
+        key={videoUrl}
         src={videoUrl}
         autoPlay
         loop={loop}
