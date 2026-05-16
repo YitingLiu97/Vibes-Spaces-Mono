@@ -66,44 +66,13 @@ update speakers set photo_url = 'https://arnfcguwmsgazpsybvth.supabase.co/storag
 update speakers set photo_url = 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/overlay-images/fond2026/partners/her-rising.png' where id = 'dddddddd-7777-7777-7777-000000000012';
 
 -- ----------------------------------------------------------------------------
--- 2. Backfill the daytime "Sponsor Reel" playlist so its 4 transition slots
---    aren't pointing at an empty playlist. Inserts the 4 presenter scenes
---    fond_2026_event.sql declared but never reached prod.
+-- 2. Daytime transition slots all share the Acknowledgments Reel.
+--    fond_2026_event.sql originally pointed 5 transition entries at the
+--    "Sponsor Reel" playlist, but its scenes never reached prod. Rather
+--    than recreating a second reel, every transition now uses the same
+--    cluster reel so sponsors/partners get steady visibility across the
+--    day. The Sponsor Reel playlist row is dropped at the bottom.
 -- ----------------------------------------------------------------------------
-insert into scenes (id, org_id, name, video_url, hide_attribution, loop_enabled, composition) values
-
-('bbbbbbbb-2222-2222-2222-000000000001'::uuid,
- '00000000-0000-0000-0000-000000000001', 'Sponsor — Sanders Studios',
- 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/scenes-videos/00000000-0000-0000-0000-000000000001/19fb9f7f-5b03-44f9-8abe-1ca5585e2554.mp4',
- false, false,
- '{"zones":{"header":{"imageUrl":null,"position":"center"},"center":{"imageUrl":"https://www.futureofnycdesign.com/public/logos/sanders_studio_transparent.png","position":"center"},"footer":{"imageUrl":null,"position":"center"}},"caption":{"text":"PRESENTED BY\nSanders Studios","font":"bebas","size":56,"color":"#FFFFFF","h":"center","v":"bottom"},"tint":{"color":"#000000","opacity":40},"accent":null}'::jsonb),
-
-('bbbbbbbb-2222-2222-2222-000000000002'::uuid,
- '00000000-0000-0000-0000-000000000001', 'Sponsor — Vision Brew Interactive',
- 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/scenes-videos/00000000-0000-0000-0000-000000000001/19fb9f7f-5b03-44f9-8abe-1ca5585e2554.mp4',
- false, false,
- '{"zones":{"header":{"imageUrl":null,"position":"center"},"center":{"imageUrl":"https://www.futureofnycdesign.com/public/logos/visionbrew_transparent.png","position":"center"},"footer":{"imageUrl":null,"position":"center"}},"caption":{"text":"PRESENTED BY\nVision Brew Interactive","font":"bebas","size":56,"color":"#FFFFFF","h":"center","v":"bottom"},"tint":{"color":"#000000","opacity":40},"accent":null}'::jsonb),
-
-('bbbbbbbb-2222-2222-2222-000000000003'::uuid,
- '00000000-0000-0000-0000-000000000001', 'Sponsor — Vibescape',
- 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/scenes-videos/00000000-0000-0000-0000-000000000001/19fb9f7f-5b03-44f9-8abe-1ca5585e2554.mp4',
- false, false,
- '{"zones":{"header":{"imageUrl":null,"position":"center"},"center":{"imageUrl":"https://www.futureofnycdesign.com/public/logos/vibes.png","position":"center"},"footer":{"imageUrl":null,"position":"center"}},"caption":{"text":"PRESENTED BY\nVibescape","font":"bebas","size":56,"color":"#FFFFFF","h":"center","v":"bottom"},"tint":{"color":"#000000","opacity":40},"accent":null}'::jsonb),
-
-('bbbbbbbb-2222-2222-2222-000000000004'::uuid,
- '00000000-0000-0000-0000-000000000001', 'Sponsor — 241 Members',
- 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/scenes-videos/00000000-0000-0000-0000-000000000001/19fb9f7f-5b03-44f9-8abe-1ca5585e2554.mp4',
- false, false,
- '{"zones":{"header":{"imageUrl":null,"position":"center"},"center":{"imageUrl":"https://www.futureofnycdesign.com/public/logos/241members.png","position":"center"},"footer":{"imageUrl":null,"position":"center"}},"caption":{"text":"PRESENTED BY\n241 Members","font":"bebas","size":56,"color":"#FFFFFF","h":"center","v":"bottom"},"tint":{"color":"#000000","opacity":40},"accent":null}'::jsonb)
-
-on conflict (id) do nothing;
-
-insert into playlist_scenes (playlist_id, scene_id, position) values
-  ('cccccccc-3333-3333-3333-000000000001'::uuid, 'bbbbbbbb-2222-2222-2222-000000000001'::uuid, 0),
-  ('cccccccc-3333-3333-3333-000000000001'::uuid, 'bbbbbbbb-2222-2222-2222-000000000002'::uuid, 1),
-  ('cccccccc-3333-3333-3333-000000000001'::uuid, 'bbbbbbbb-2222-2222-2222-000000000003'::uuid, 2),
-  ('cccccccc-3333-3333-3333-000000000001'::uuid, 'bbbbbbbb-2222-2222-2222-000000000004'::uuid, 3)
-on conflict (playlist_id, scene_id) do nothing;
 
 -- ----------------------------------------------------------------------------
 -- 3. Cluster scenes (Presenters / Sponsors / Community Partners).
@@ -192,8 +161,8 @@ insert into playlist_scenes (playlist_id, scene_id, position) values
   ('cccccccc-3333-3333-3333-000000000002'::uuid, 'aaaaaaaa-1111-1111-1111-000000000022'::uuid, 2); -- Community Partners
 
 -- ----------------------------------------------------------------------------
--- 5. Repoint the Opening (12:00–12:30) and Reception (19:15–20:00) schedule
---    entries to the Acknowledgments Reel.
+-- 5. Schedule entries — Opening, Reception, AND every daytime transition
+--    all point at the Acknowledgments Reel.
 -- ----------------------------------------------------------------------------
 update schedule_entries
    set scene_id    = null,
@@ -206,6 +175,17 @@ update schedule_entries
        playlist_id = 'cccccccc-3333-3333-3333-000000000002'::uuid
  where id = 'dddddddd-4444-4444-4444-000000000016'::uuid
    and (scene_id = 'aaaaaaaa-1111-1111-1111-000000000011'::uuid or playlist_id is null);
+
+-- Daytime transitions originally pointed at the empty Sponsor Reel; route
+-- them to the Acknowledgments Reel too.
+update schedule_entries
+   set playlist_id = 'cccccccc-3333-3333-3333-000000000002'::uuid
+ where org_id = '00000000-0000-0000-0000-000000000001'
+   and playlist_id = 'cccccccc-3333-3333-3333-000000000001'::uuid;
+
+-- Drop the now-orphaned Sponsor Reel playlist row.
+delete from playlist_scenes where playlist_id = 'cccccccc-3333-3333-3333-000000000001'::uuid;
+delete from playlists       where id          = 'cccccccc-3333-3333-3333-000000000001'::uuid;
 
 commit;
 
