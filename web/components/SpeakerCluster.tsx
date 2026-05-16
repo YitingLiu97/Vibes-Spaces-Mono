@@ -24,6 +24,14 @@ function jitter(key: string, salt: string, range: number): number {
   return ((h % 1000) / 1000 - 0.5) * 2 * range;
 }
 
+// Logo nodes (brand marks) need contain-fit + an inset background; speaker
+// headshots want the default crop-to-circle. Match both relative seed paths
+// and the absolute Supabase Storage URLs used by the FOND 2026 reel.
+function isLogoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return url.includes('/logos/') || url.includes('/overlay-images/');
+}
+
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return (parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '');
@@ -89,7 +97,7 @@ function SpeakerNode({
       }}
     >
       <div
-        className={`speaker-node-photo${item.photoUrl?.startsWith('/logos/') ? ' speaker-node-photo--logo' : ''}`}
+        className={`speaker-node-photo${isLogoUrl(item.photoUrl) ? ' speaker-node-photo--logo' : ''}`}
       >
         {item.photoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

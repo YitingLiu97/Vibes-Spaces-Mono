@@ -178,6 +178,14 @@ function SpeakerClusterLayer({ cluster }: { cluster: SceneSpeakerCluster }) {
   );
 }
 
+// Logo nodes (brand marks) need contain-fit + an inset background; speaker
+// headshots want the default crop-to-circle. Match both relative seed paths
+// and the absolute Supabase Storage URLs used by the FOND 2026 reel.
+function isLogoUrl(url: string | null | undefined): boolean {
+  if (!url) return false;
+  return url.includes('/logos/') || url.includes('/overlay-images/');
+}
+
 function Node({
   item,
   isModerator,
@@ -201,7 +209,7 @@ function Node({
       }}
     >
       <div
-        className={`speaker-node-photo${item.photoUrl?.startsWith('/logos/') ? ' speaker-node-photo--logo' : ''}`}
+        className={`speaker-node-photo${isLogoUrl(item.photoUrl) ? ' speaker-node-photo--logo' : ''}`}
       >
         {item.photoUrl ? (
           <img
