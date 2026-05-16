@@ -9,7 +9,7 @@
 --
 --     Cluster — Presenters             (4 logos on an arc, "Presented By")
 --     Cluster — Sponsors               (3 logos on an arc, "Sponsored By")
---     Cluster — Community Partners     (5 logos on an arc, "In Partnership With")
+--     Cluster — Community Partners     (6 logos on an arc, "In Partnership With")
 --
 -- Why this file ALSO carries fixups for the upstream seed:
 --   On 2026-05-15 the live DB was audited and found to be missing the four
@@ -64,6 +64,7 @@ update speakers set photo_url = 'https://arnfcguwmsgazpsybvth.supabase.co/storag
 update speakers set photo_url = 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/overlay-images/fond2026/partners/bkpd.png'       where id = 'dddddddd-7777-7777-7777-000000000010';
 update speakers set photo_url = 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/overlay-images/fond2026/partners/bsm.png'        where id = 'dddddddd-7777-7777-7777-000000000011';
 update speakers set photo_url = 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/overlay-images/fond2026/partners/her-rising.png' where id = 'dddddddd-7777-7777-7777-000000000012';
+update speakers set photo_url = 'https://arnfcguwmsgazpsybvth.supabase.co/storage/v1/object/public/overlay-images/fond2026/partners/friends-of-figma.svg' where id = 'dddddddd-7777-7777-7777-000000000013';
 
 -- ----------------------------------------------------------------------------
 -- 2. Daytime transition slots all share the Acknowledgments Reel.

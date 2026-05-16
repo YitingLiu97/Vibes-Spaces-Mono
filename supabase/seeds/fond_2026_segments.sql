@@ -11,7 +11,7 @@
 --   6. Design Awards Judges
 --   7. Presenters (Vibes, 241 Members, Sanders Studios, Vision Brew)
 --   8. Sponsors (Figma, Mobbin, Wonder)
---   9. Community Partners (AIGA NY, ACF, BKPD, BSM, Her Rising)
+--   9. Community Partners (AIGA NY, ACF, BKPD, BSM, Her Rising, Friends of Figma NYC)
 --
 -- Speakers seen on futureofnycdesign.com but not on stage at one of the five
 -- session segments above (Somya, May, Hedy, David, Craig, Jessica, Christine)
@@ -120,7 +120,9 @@ insert into speakers (id, org_id, name, photo_url) values
   ('dddddddd-7777-7777-7777-000000000011'::uuid, '00000000-0000-0000-0000-000000000001',
    'Black Style Matters',       '/logos/community%20partners/bsm.png'),
   ('dddddddd-7777-7777-7777-000000000012'::uuid, '00000000-0000-0000-0000-000000000001',
-   'Her Rising',               '/logos/community%20partners/her-rising.png')
+   'Her Rising',               '/logos/community%20partners/her-rising.png'),
+  ('dddddddd-7777-7777-7777-000000000013'::uuid, '00000000-0000-0000-0000-000000000001',
+   'Friends of Figma NYC',     '/logos/community%20partners/friends-of-figma.svg')
 on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
@@ -200,12 +202,13 @@ insert into segment_speakers (segment_id, speaker_id, role, position) values
   ('ffffffff-6666-6666-6666-000000000008', 'dddddddd-7777-7777-7777-000000000006', 'speaker', 1),
   ('ffffffff-6666-6666-6666-000000000008', 'dddddddd-7777-7777-7777-000000000007', 'speaker', 2),
 
-  -- Community Partners — AIGA NY / ACF / BKPD / BSM / Her Rising
+  -- Community Partners — AIGA NY / ACF / BKPD / BSM / Her Rising / Friends of Figma NYC
   ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000008', 'speaker', 0),
   ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000009', 'speaker', 1),
   ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000010', 'speaker', 2),
   ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000011', 'speaker', 3),
-  ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000012', 'speaker', 4)
+  ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000012', 'speaker', 4),
+  ('ffffffff-6666-6666-6666-000000000009', 'dddddddd-7777-7777-7777-000000000013', 'speaker', 5)
 on conflict (segment_id, speaker_id) do nothing;
 
 -- Note: compositions are auto-built by the SegmentsTab editor on next save.
