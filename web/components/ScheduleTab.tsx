@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Plus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, ChevronLeft, ChevronRight, GripVertical, ListMusic } from 'lucide-react';
 import type { Playlist, Scene, ScheduleEntry } from '@vibes/shared/types';
 import { getSupabase } from '@/lib/supabase';
 import { ORG_ID } from '@/lib/constants';
@@ -149,6 +149,49 @@ export function ScheduleTab() {
     }
   }
 
+  // Drop from the scene library onto the rail. Defaults to a 30-minute one-off
+  // on the visible date — the operator can drag the edges to resize after.
+  async function addEntryAt(target: { sceneId?: string; playlistId?: string }, startMin: number) {
+    const endMin = Math.min(24 * 60, startMin + 30);
+    const startTime = minToTime(startMin) + ':00';
+    const endTime = minToTime(endMin) + ':00';
+    try {
+      const { data, error } = await getSupabase()
+        .from('schedule_entries')
+        .insert({
+          org_id: ORG_ID,
+          scene_id: target.sceneId ?? null,
+          playlist_id: target.playlistId ?? null,
+          start_time: startTime,
+          end_time: endTime,
+          weekday_mask: null,
+          override_date: date,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      setEntries((prev) => [
+        ...prev,
+        {
+          id: data.id,
+          sceneId: data.scene_id,
+          playlistId: data.playlist_id,
+          startTime: data.start_time,
+          endTime: data.end_time,
+          weekdayMask: data.weekday_mask,
+          overrideDate: data.override_date,
+        },
+      ]);
+      toast({ title: `Scheduled ${minToTime(startMin)}–${minToTime(endMin)}` });
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Couldn’t schedule',
+        description: 'Check your connection and try again.',
+      });
+    }
+  }
+
   const visibleEntries = useMemo(
     () => entries.filter((e) => entryMatchesDate(e, date)).sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [entries, date],
@@ -203,25 +246,28 @@ export function ScheduleTab() {
         </Button>
         <span className="text-sm text-fg-secondary ml-2">{dateLabel}</span>
         <span className="text-xs text-fg-tertiary ml-auto">
-          Click empty to add · drag block to move · drag edges to resize · click to delete
+          Drag a scene from the library onto the rail · drag block up/down to move · drag edges to resize · click to delete
         </span>
       </div>
 
       {loading ? (
-        <div className="h-32 animate-pulse rounded-lg bg-bg-elevated" />
+        <div className="h-[600px] animate-pulse rounded-lg bg-bg-elevated" />
       ) : (
-        <ScheduleTimeline
+        <ScheduleBoard
           entries={visibleEntries}
+          scenes={scenes}
+          playlists={playlists}
           labelFor={labelFor}
           onClickEmpty={(t) => openAdd(t)}
           onClickEntry={(e) => deleteEntry(e.id)}
           onReschedule={rescheduleEntry}
+          onAddAt={addEntryAt}
         />
       )}
 
       {visibleEntries.length === 0 && !loading && (
         <div className="rounded-md border border-dashed border-border bg-bg-base p-4 text-sm text-fg-tertiary">
-          No entries on this day. Click anywhere on the timeline above to add one at that time.
+          No entries on this day. Drag a scene from the library, or click anywhere on the timeline to open the full add dialog.
         </div>
       )}
 
@@ -243,48 +289,63 @@ export function ScheduleTab() {
 
 type DragMode = 'move' | 'start' | 'end';
 type Draft = { id: string; startMin: number; endMin: number };
+type LibraryItem = { kind: 'scene' | 'playlist'; id: string; name: string };
+type LibraryDrag = LibraryItem & { cursorX: number; cursorY: number; overTime: number | null };
 
-function ScheduleTimeline({
+function ScheduleBoard({
   entries,
+  scenes,
+  playlists,
   labelFor,
   onClickEmpty,
   onClickEntry,
   onReschedule,
+  onAddAt,
 }: {
   entries: ScheduleEntry[];
+  scenes: Scene[];
+  playlists: Playlist[];
   labelFor: (e: ScheduleEntry) => string;
   onClickEmpty: (time: string) => void;
   onClickEntry: (e: ScheduleEntry) => void;
   onReschedule: (id: string, startTime: string, endTime: string) => void;
+  onAddAt: (target: { sceneId?: string; playlistId?: string }, startMin: number) => void;
 }) {
   const railRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  const [libDrag, setLibDrag] = useState<LibraryDrag | null>(null);
   const suppressClickRef = useRef(false);
 
   function pct(min: number): number {
     return ((min - VISIBLE_START_MIN) / VISIBLE_SPAN) * 100;
   }
 
+  function timeUnderCursor(clientX: number, clientY: number): number | null {
+    const rect = railRef.current?.getBoundingClientRect();
+    if (!rect) return null;
+    if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+      return null;
+    }
+    const ratio = (clientY - rect.top) / rect.height;
+    return VISIBLE_START_MIN + Math.round((ratio * VISIBLE_SPAN) / 5) * 5;
+  }
+
   function handleRailClick(ev: React.MouseEvent<HTMLDivElement>) {
     if (ev.target !== ev.currentTarget) return; // click landed on an entry
-    const rect = railRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const x = ev.clientX - rect.left;
-    const ratio = Math.max(0, Math.min(1, x / rect.width));
-    const min = VISIBLE_START_MIN + Math.round((ratio * VISIBLE_SPAN) / 5) * 5;
+    const min = timeUnderCursor(ev.clientX, ev.clientY);
+    if (min === null) return;
     onClickEmpty(minToTime(min));
   }
 
-  // Pointer-driven drag: click without movement → onClickEntry; any motion
-  // beyond a small threshold → live draft preview, then persist on release.
+  // Pointer-driven drag of an existing entry. Vertical: Y delta → minutes.
   function startDrag(ev: React.PointerEvent, e: ScheduleEntry, mode: DragMode) {
     if (ev.button !== 0) return;
     ev.preventDefault();
     ev.stopPropagation();
     const rect = railRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const minutesPerPx = VISIBLE_SPAN / rect.width;
-    const pointerStartX = ev.clientX;
+    const minutesPerPx = VISIBLE_SPAN / rect.height;
+    const pointerStartY = ev.clientY;
     const originalStart = timeToMin(e.startTime);
     const originalEnd = timeToMin(e.endTime);
     const duration = originalEnd - originalStart;
@@ -292,7 +353,7 @@ function ScheduleTimeline({
     let lastDraft: Draft | null = null;
 
     const onMove = (mv: PointerEvent) => {
-      const deltaPx = mv.clientX - pointerStartX;
+      const deltaPx = mv.clientY - pointerStartY;
       if (!moved && Math.abs(deltaPx) > 3) moved = true;
       const deltaMin = Math.round((deltaPx * minutesPerPx) / 5) * 5;
       let newStart = originalStart;
@@ -325,77 +386,201 @@ function ScheduleTimeline({
     window.addEventListener('pointerup', onUp);
   }
 
+  // Drag a scene/playlist chip from the library. Threshold-gated so a plain
+  // click on a chip doesn't immediately start a drag. On release over the
+  // rail, materialise as a one-off entry at the snapped time.
+  function startLibraryDrag(ev: React.PointerEvent, item: LibraryItem) {
+    if (ev.button !== 0) return;
+    ev.preventDefault();
+    const startX = ev.clientX;
+    const startY = ev.clientY;
+    let dragging = false;
+
+    const onMove = (mv: PointerEvent) => {
+      if (!dragging && (Math.abs(mv.clientX - startX) > 4 || Math.abs(mv.clientY - startY) > 4)) {
+        dragging = true;
+      }
+      if (!dragging) return;
+      setLibDrag({
+        ...item,
+        cursorX: mv.clientX,
+        cursorY: mv.clientY,
+        overTime: timeUnderCursor(mv.clientX, mv.clientY),
+      });
+    };
+
+    const onUp = (up: PointerEvent) => {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      const drop = dragging ? timeUnderCursor(up.clientX, up.clientY) : null;
+      setLibDrag(null);
+      if (drop !== null) {
+        const target = item.kind === 'scene' ? { sceneId: item.id } : { playlistId: item.id };
+        // Clamp end to the visible window so the new block is always visible.
+        const start = Math.min(drop, VISIBLE_END_MIN - 30);
+        onAddAt(target, Math.max(0, start));
+      }
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
+
   const hours: number[] = [];
   for (let h = Math.ceil(VISIBLE_START_MIN / 60); h <= Math.floor(VISIBLE_END_MIN / 60); h++) {
     hours.push(h);
   }
 
+  const sortedScenes = useMemo(() => [...scenes].sort((a, b) => a.name.localeCompare(b.name)), [scenes]);
+  const sortedPlaylists = useMemo(
+    () => [...playlists].sort((a, b) => a.name.localeCompare(b.name)),
+    [playlists],
+  );
+
   return (
-    <div className="schedule-timeline">
-      <div className="schedule-axis">
-        {hours.map((h) => (
-          <div key={h} className="schedule-axis-tick" style={{ left: `${pct(h * 60)}%` }}>
-            <span className="schedule-axis-tick-label">{String(h).padStart(2, '0')}:00</span>
+    <div className="schedule-board">
+      <aside className="schedule-library" aria-label="Scene library">
+        <div className="schedule-library-section">
+          <h3 className="schedule-library-heading">Scenes</h3>
+          {sortedScenes.length === 0 ? (
+            <p className="schedule-library-empty">No scenes yet.</p>
+          ) : (
+            <ul className="schedule-library-list">
+              {sortedScenes.map((s) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    className="schedule-library-chip"
+                    onPointerDown={(ev) => startLibraryDrag(ev, { kind: 'scene', id: s.id, name: s.name })}
+                    title={`Drag onto the timeline to schedule "${s.name}"`}
+                  >
+                    <GripVertical className="h-3.5 w-3.5 text-fg-tertiary" strokeWidth={1.5} />
+                    <span className="schedule-library-chip-label">{s.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        {sortedPlaylists.length > 0 && (
+          <div className="schedule-library-section">
+            <h3 className="schedule-library-heading">Playlists</h3>
+            <ul className="schedule-library-list">
+              {sortedPlaylists.map((p) => (
+                <li key={p.id}>
+                  <button
+                    type="button"
+                    className="schedule-library-chip schedule-library-chip--playlist"
+                    onPointerDown={(ev) =>
+                      startLibraryDrag(ev, { kind: 'playlist', id: p.id, name: p.name })
+                    }
+                    title={`Drag onto the timeline to schedule "${p.name}"`}
+                  >
+                    <ListMusic className="h-3.5 w-3.5 text-fg-tertiary" strokeWidth={1.5} />
+                    <span className="schedule-library-chip-label">{p.name}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
-        ))}
-      </div>
-      <div ref={railRef} className="schedule-rail" onClick={handleRailClick} role="grid">
-        {hours.map((h) => (
-          <div key={h} className="schedule-rail-grid" style={{ left: `${pct(h * 60)}%` }} aria-hidden />
-        ))}
-        {entries.map((e) => {
-          const isDrafting = draft?.id === e.id;
-          const start = isDrafting ? draft!.startMin : timeToMin(e.startTime);
-          const end = isDrafting ? draft!.endMin : timeToMin(e.endTime);
-          if (end <= VISIBLE_START_MIN || start >= VISIBLE_END_MIN) return null;
-          const clippedStart = Math.max(start, VISIBLE_START_MIN);
-          const clippedEnd = Math.min(end, VISIBLE_END_MIN);
-          const isPlaylist = !!e.playlistId;
-          return (
-            <div
-              key={e.id}
-              role="button"
-              tabIndex={0}
-              onPointerDown={(ev) => startDrag(ev, e, 'move')}
-              onClick={(ev) => {
-                ev.stopPropagation();
-                if (suppressClickRef.current) {
-                  suppressClickRef.current = false;
-                  return;
-                }
-                onClickEntry(e);
-              }}
-              onKeyDown={(ev) => {
-                if (ev.key === 'Enter' || ev.key === ' ') {
-                  ev.preventDefault();
-                  onClickEntry(e);
-                }
-              }}
-              className={`schedule-block${isPlaylist ? ' schedule-block--playlist' : ''}${isDrafting ? ' schedule-block--dragging' : ''}`}
-              style={{
-                left: `${pct(clippedStart)}%`,
-                width: `${pct(clippedEnd) - pct(clippedStart)}%`,
-              }}
-              title={`${labelFor(e)} · ${minToTime(start)}–${minToTime(end)}`}
-            >
-              <span
-                className="schedule-block-handle schedule-block-handle--start"
-                onPointerDown={(ev) => startDrag(ev, e, 'start')}
-                aria-hidden
-              />
-              <span className="schedule-block-label">{labelFor(e)}</span>
-              <span className="schedule-block-time">
-                {minToTime(start)}–{minToTime(end)}
-              </span>
-              <span
-                className="schedule-block-handle schedule-block-handle--end"
-                onPointerDown={(ev) => startDrag(ev, e, 'end')}
-                aria-hidden
-              />
+        )}
+      </aside>
+
+      <div className="schedule-vertical">
+        <div className="schedule-axis-vertical" aria-hidden>
+          {hours.map((h) => (
+            <div key={h} className="schedule-axis-vtick" style={{ top: `${pct(h * 60)}%` }}>
+              <span className="schedule-axis-vtick-label">{String(h).padStart(2, '0')}:00</span>
             </div>
-          );
-        })}
+          ))}
+        </div>
+        <div
+          ref={railRef}
+          className={`schedule-rail-vertical${libDrag ? ' schedule-rail-vertical--drop' : ''}`}
+          onClick={handleRailClick}
+          role="grid"
+        >
+          {hours.map((h) => (
+            <div key={h} className="schedule-rail-vgrid" style={{ top: `${pct(h * 60)}%` }} aria-hidden />
+          ))}
+          {libDrag?.overTime !== null && libDrag?.overTime !== undefined && (
+            <div
+              className="schedule-block-vertical schedule-block-vertical--ghost"
+              style={{
+                top: `${pct(libDrag.overTime)}%`,
+                height: `${pct(libDrag.overTime + 30) - pct(libDrag.overTime)}%`,
+              }}
+              aria-hidden
+            >
+              <span className="schedule-block-label">{libDrag.name}</span>
+              <span className="schedule-block-time">
+                {minToTime(libDrag.overTime)}–{minToTime(libDrag.overTime + 30)}
+              </span>
+            </div>
+          )}
+          {entries.map((e) => {
+            const isDrafting = draft?.id === e.id;
+            const start = isDrafting ? draft!.startMin : timeToMin(e.startTime);
+            const end = isDrafting ? draft!.endMin : timeToMin(e.endTime);
+            if (end <= VISIBLE_START_MIN || start >= VISIBLE_END_MIN) return null;
+            const clippedStart = Math.max(start, VISIBLE_START_MIN);
+            const clippedEnd = Math.min(end, VISIBLE_END_MIN);
+            const isPlaylist = !!e.playlistId;
+            return (
+              <div
+                key={e.id}
+                role="button"
+                tabIndex={0}
+                onPointerDown={(ev) => startDrag(ev, e, 'move')}
+                onClick={(ev) => {
+                  ev.stopPropagation();
+                  if (suppressClickRef.current) {
+                    suppressClickRef.current = false;
+                    return;
+                  }
+                  onClickEntry(e);
+                }}
+                onKeyDown={(ev) => {
+                  if (ev.key === 'Enter' || ev.key === ' ') {
+                    ev.preventDefault();
+                    onClickEntry(e);
+                  }
+                }}
+                className={`schedule-block-vertical${isPlaylist ? ' schedule-block-vertical--playlist' : ''}${isDrafting ? ' schedule-block-vertical--dragging' : ''}`}
+                style={{
+                  top: `${pct(clippedStart)}%`,
+                  height: `${pct(clippedEnd) - pct(clippedStart)}%`,
+                }}
+                title={`${labelFor(e)} · ${minToTime(start)}–${minToTime(end)}`}
+              >
+                <span
+                  className="schedule-block-vhandle schedule-block-vhandle--top"
+                  onPointerDown={(ev) => startDrag(ev, e, 'start')}
+                  aria-hidden
+                />
+                <span className="schedule-block-label">{labelFor(e)}</span>
+                <span className="schedule-block-time">
+                  {minToTime(start)}–{minToTime(end)}
+                </span>
+                <span
+                  className="schedule-block-vhandle schedule-block-vhandle--bottom"
+                  onPointerDown={(ev) => startDrag(ev, e, 'end')}
+                  aria-hidden
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
+
+      {libDrag && (
+        <div
+          className="schedule-library-floater"
+          style={{ left: libDrag.cursorX, top: libDrag.cursorY }}
+        >
+          {libDrag.name}
+        </div>
+      )}
     </div>
   );
 }
