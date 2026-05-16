@@ -503,7 +503,7 @@ function ScheduleBoard({
           {hours.map((h) => (
             <div key={h} className="schedule-rail-vgrid" style={{ top: `${pct(h * 60)}%` }} aria-hidden />
           ))}
-          {libDrag?.overTime !== null && libDrag?.overTime !== undefined && (
+          {libDrag && libDrag.overTime !== null && (
             <div
               className="schedule-block-vertical schedule-block-vertical--ghost"
               style={{
