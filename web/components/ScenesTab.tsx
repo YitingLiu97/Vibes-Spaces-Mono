@@ -22,7 +22,23 @@ export function ScenesTab() {
   const [exportOpen, setExportOpen] = useState(false);
   const [composingScene, setComposingScene] = useState<Scene | null>(null);
   const [forcedSceneId, setForcedSceneId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const { toast } = useToast();
+
+  function toggleSelected(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    setSelectedIds((prev) =>
+      prev.size === scenes.length ? new Set() : new Set(scenes.map((s) => s.id)),
+    );
+  }
 
   const refresh = useCallback(async () => {
     const { data } = await getSupabase()
@@ -85,9 +101,34 @@ export function ScenesTab() {
   async function deleteScene(scene: Scene) {
     if (!confirm(`Delete “${scene.name}”? This can’t be undone.`)) return;
     setScenes((prev) => prev.filter((s) => s.id !== scene.id));
+    setSelectedIds((prev) => {
+      if (!prev.has(scene.id)) return prev;
+      const next = new Set(prev);
+      next.delete(scene.id);
+      return next;
+    });
     try {
       await getSupabase().from('scenes').delete().eq('id', scene.id);
       toast({ title: 'Scene deleted', description: scene.name });
+    } catch {
+      toast({
+        variant: 'destructive',
+        title: 'Couldn’t delete',
+        description: 'Check your connection and try again.',
+      });
+      refresh();
+    }
+  }
+
+  async function deleteSelected() {
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} scene${ids.length === 1 ? '' : 's'}? This can’t be undone.`)) return;
+    setScenes((prev) => prev.filter((s) => !selectedIds.has(s.id)));
+    setSelectedIds(new Set());
+    try {
+      await getSupabase().from('scenes').delete().in('id', ids);
+      toast({ title: `${ids.length} scene${ids.length === 1 ? '' : 's'} deleted` });
     } catch {
       toast({
         variant: 'destructive',
@@ -159,12 +200,42 @@ export function ScenesTab() {
           </Button>
         </div>
       ) : (
-        <ul className="flex flex-col gap-2" role="list">
-          {scenes.map((scene) => (
+        <>
+          <div className="flex items-center justify-between gap-3 px-4">
+            <label className="flex items-center gap-2 text-xs text-fg-tertiary">
+              <input
+                type="checkbox"
+                checked={selectedIds.size > 0 && selectedIds.size === scenes.length}
+                ref={(el) => {
+                  if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < scenes.length;
+                }}
+                onChange={toggleSelectAll}
+                className="rounded"
+              />
+              {selectedIds.size > 0
+                ? `${selectedIds.size} selected`
+                : `Select all (${scenes.length})`}
+            </label>
+            {selectedIds.size > 0 && (
+              <Button variant="danger" size="sm" onClick={deleteSelected}>
+                <Trash className="h-4 w-4" strokeWidth={1.5} />
+                Remove selected
+              </Button>
+            )}
+          </div>
+          <ul className="flex flex-col gap-2" role="list">
+            {scenes.map((scene) => (
             <li
               key={scene.id}
               className="flex items-center gap-4 rounded-lg border border-border-subtle bg-bg-elevated px-4 py-3"
             >
+              <input
+                type="checkbox"
+                checked={selectedIds.has(scene.id)}
+                onChange={() => toggleSelected(scene.id)}
+                className="rounded"
+                aria-label={`Select ${scene.name}`}
+              />
               <button
                 type="button"
                 onClick={() => setComposingScene(scene)}
@@ -230,8 +301,9 @@ export function ScenesTab() {
                 <Trash className="h-4 w-4" strokeWidth={1.5} />
               </Button>
             </li>
-          ))}
-        </ul>
+            ))}
+          </ul>
+        </>
       )}
 
       <ScenesUploadDialog
